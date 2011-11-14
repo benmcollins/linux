@@ -136,8 +136,12 @@ void udbg_printf(const char *fmt, ...)
 
 void __init udbg_progress(char *s, unsigned short hex)
 {
+#ifdef CONFIG_PRINTK
+	if (console_loglevel <= 4)
+		return;
 	udbg_puts(s);
 	udbg_puts("\n");
+#endif
 }
 
 /*
