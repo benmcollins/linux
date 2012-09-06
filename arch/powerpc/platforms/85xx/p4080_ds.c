@@ -16,6 +16,8 @@
 #include <linux/kdev_t.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/phy.h>
+#include <linux/gpio.h>
 
 #include <asm/time.h>
 #include <asm/machdep.h>
@@ -33,14 +35,59 @@
 #include "corenet_ds.h"
 
 /*
+ * This is generic enough to be architecture independent, but we need it
+ * here for now.
+ */
+static int halt_gpion = -EINVAL;
+static int halt_trigger;
+
+/*
+ * Value is the trigger value. Initial state will be negated.
+ */
+void ppc_register_halt_gpio(int gpio, int trigger)
+{
+	int err;
+
+	/* Double registering is bad, mmkay */
+	if (WARN_ON(gpio_is_valid(halt_gpion)))
+		return;
+
+	err = gpio_request(gpio, "ppc-gpio-halt");
+	if (err) {
+		printk(KERN_ERR "ppc-gpio-halt: error requesting GPIO %d\n",
+		       gpio);
+		return;
+	}
+
+	gpio_direction_output(gpio, !trigger);
+
+	/* Save it for later */
+	halt_gpion = gpio;
+	halt_trigger = trigger;
+
+	printk(KERN_INFO "ppc-gpio-halt: registered GPIO %d (%d trigger)\n",
+	       gpio, trigger);
+}
+EXPORT_SYMBOL(ppc_register_halt_gpio);
+
+static void ppc_gpio_halt(void)
+{
+	printk("ppc-gpio-halt: Halt called\n");
+
+	if (!gpio_is_valid(halt_gpion))
+		return;
+
+	printk("ppc-gpio-halt: triggering GPIO to halt/poweroff the machine.\n");
+
+	gpio_set_value(halt_gpion, halt_trigger);
+}
+
+/*
  * Called very early, device-tree isn't unflattened
  */
 static int __init p4080_ds_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
-
-	if (of_flat_dt_is_compatible(root, "fsl,P4080DS"))
-		return 1;
 
 	/* Check if we're running under the Freescale hypervisor */
 	if (of_flat_dt_is_compatible(root, "fsl,P4080DS-hv")) {
@@ -49,6 +96,13 @@ static int __init p4080_ds_probe(void)
 		ppc_md.restart = fsl_hv_restart;
 		ppc_md.power_off = fsl_hv_halt;
 		ppc_md.halt = fsl_hv_halt;
+		return 1;
+	} else if (of_flat_dt_is_compatible(root, "fsl,P4080DS")) {
+		if (of_flat_dt_is_compatible(root, "servergy,jade")) {
+			ppc_md.halt = ppc_gpio_halt;
+			ppc_md.power_off = ppc_gpio_halt;
+		}
+
 		return 1;
 	}
 
