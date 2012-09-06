@@ -312,12 +312,15 @@ static struct of_device_id mpc8xxx_gpio_ids[] __initdata = {
 	{}
 };
 
+extern void ppc_register_halt_gpio(int gpio, int trigger);
+
 static void __init mpc8xxx_add_controller(struct device_node *np)
 {
 	struct mpc8xxx_gpio_chip *mpc8xxx_gc;
 	struct of_mm_gpio_chip *mm_gc;
 	struct gpio_chip *gc;
 	const struct of_device_id *id;
+	struct device_node *child;
 	unsigned hwirq;
 	int ret;
 
@@ -365,6 +368,31 @@ static void __init mpc8xxx_add_controller(struct device_node *np)
 
 	irq_set_handler_data(hwirq, mpc8xxx_gc);
 	irq_set_chained_handler(hwirq, mpc8xxx_gpio_irq_cascade);
+
+	/* XXX This belongs somewhere else. Check for HALT gpio */
+	for_each_child_of_node(np, child) {
+		int gpio;
+		enum of_gpio_flags flag;
+
+		if (!of_device_is_compatible(child, "ppc-halt-gpio"))
+			continue;
+
+		/* Technically we could just read the first one, but punish
+		 * DT writers for invalid form. */
+		if (of_gpio_count(child) != 1)
+			continue;
+
+		/* Get the gpio number relative to the dynamic base. */
+		gpio = of_get_gpio_flags(child, 0, &flag);
+		if (!gpio_is_valid(gpio))
+			continue;
+
+		/* All looks good */
+		ppc_register_halt_gpio(gpio, (flag == OF_GPIO_ACTIVE_LOW));
+
+		/* Only do this once */
+		break;
+	}
 
 skip_irq:
 	return;
