@@ -299,6 +299,7 @@ static int __cpuinit smp_85xx_kick_cpu(int nr)
 	struct ccsr_rcpm __iomem *rcpm = guts_regs;
 	struct ccsr_rcpm_v2 __iomem *rcpm_v2 = guts_regs;
 #endif
+	unsigned long *ptr = NULL;
 
 	WARN_ON(nr < 0 || nr >= NR_CPUS);
 	WARN_ON(hw_cpu < 0 || hw_cpu >= NR_CPUS);
@@ -420,17 +421,27 @@ static int __cpuinit smp_85xx_kick_cpu(int nr)
 		/*  clear the acknowledge status */
 		__secondary_hold_acknowledge = -1;
 	}
-	flush_spin_table(spin_table);
-	out_be32(&spin_table->pir, hw_cpu);
-#ifdef CONFIG_PPC32
-	out_be32(&spin_table->addr_l, __pa(__early_start));
-#else
-	out_be32(&spin_table->addr_h,
-		__pa(*(u64 *)generic_secondary_smp_init) >> 32);
-	out_be32(&spin_table->addr_l,
-		__pa(*(u64 *)generic_secondary_smp_init) & 0xffffffff);
+
+#ifdef CONFIG_PPC64
+	ptr  = (unsigned long *)((unsigned long)&__run_at_kexec);
 #endif
-	flush_spin_table(spin_table);
+	/* We shouldn't access spin_table from the bootloader to up any
+	 * secondary cpu for kexec kernel, and kexec kernel already
+	 * know how to jump to generic_secondary_smp_init.
+	 */
+	if (!ptr || !*ptr) {
+		flush_spin_table(spin_table);
+		out_be32(&spin_table->pir, hw_cpu);
+#ifdef CONFIG_PPC32
+		out_be32(&spin_table->addr_l, __pa(__early_start));
+#else
+		out_be32(&spin_table->addr_h,
+			__pa(*(u64 *)generic_secondary_smp_init) >> 32);
+		out_be32(&spin_table->addr_l,
+			__pa(*(u64 *)generic_secondary_smp_init) & 0xffffffff);
+#endif
+		flush_spin_table(spin_table);
+	}
 
 #ifdef CONFIG_PPC32
 	/* Wait a bit for the CPU to ack. */
