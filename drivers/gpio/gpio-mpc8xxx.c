@@ -312,7 +312,9 @@ static struct of_device_id mpc8xxx_gpio_ids[] __initdata = {
 	{}
 };
 
+#ifdef CONFIG_P4080_DS
 extern void ppc_register_halt_gpio(int gpio, int trigger);
+#endif
 
 static void __init mpc8xxx_add_controller(struct device_node *np)
 {
@@ -369,6 +371,7 @@ static void __init mpc8xxx_add_controller(struct device_node *np)
 	irq_set_handler_data(hwirq, mpc8xxx_gc);
 	irq_set_chained_handler(hwirq, mpc8xxx_gpio_irq_cascade);
 
+#ifdef CONFIG_P4080_DS
 	/* XXX This belongs somewhere else. Check for HALT gpio */
 	for_each_child_of_node(np, child) {
 		int gpio;
@@ -393,6 +396,7 @@ static void __init mpc8xxx_add_controller(struct device_node *np)
 		/* Only do this once */
 		break;
 	}
+#endif
 
 skip_irq:
 	return;
