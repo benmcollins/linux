@@ -165,6 +165,7 @@ static struct console udbg_console = {
  */
 void __init register_early_udbg_console(void)
 {
+#ifdef CONFIG_PRINTK
 	if (early_console)
 		return;
 
@@ -177,6 +178,7 @@ void __init register_early_udbg_console(void)
 	}
 	early_console = &udbg_console;
 	register_console(&udbg_console);
+#endif
 }
 
 #if 0   /* if you want to use this as a regular output console */
