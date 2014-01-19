@@ -8,7 +8,7 @@ export MAKEFLAGS="O=$dir -j$nway"
 
 buildarch="`uname -p`"
 
-if [ "$buildarch" != "ppc" ]; then
+if [ "$buildarch" != "ppc" -a "$buildarch" != "ppc64" ]; then
 	if [ -d /opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/x86_64-fsl_networking_sdk-linux ]; then
 		rootdir="/opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/x86_64-fsl_networking_sdk-linux"
 	else
