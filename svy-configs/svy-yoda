@@ -667,6 +667,7 @@ CONFIG_VIRTIO_BLK=y
 # CONFIG_TIFM_CORE is not set
 # CONFIG_ICS932S401 is not set
 # CONFIG_ENCLOSURE_SERVICES is not set
+# CONFIG_FSL_DCM is not set
 # CONFIG_HP_ILO is not set
 # CONFIG_APDS9802ALS is not set
 # CONFIG_ISL29003 is not set
@@ -1995,6 +1996,7 @@ CONFIG_CRC32_SLICEBY8=y
 # CONFIG_CRC7 is not set
 CONFIG_LIBCRC32C=y
 # CONFIG_CRC8 is not set
+# CONFIG_CRC64_ECMA is not set
 CONFIG_ZLIB_INFLATE=y
 # CONFIG_XZ_DEC is not set
 # CONFIG_XZ_DEC_BCJ is not set
@@ -2143,6 +2145,7 @@ CONFIG_CRYPTO_WORKQUEUE=y
 # CONFIG_CRYPTO_CCM is not set
 # CONFIG_CRYPTO_GCM is not set
 # CONFIG_CRYPTO_SEQIV is not set
+# CONFIG_CRYPTO_TLS is not set
 
 #
 # Block modes
