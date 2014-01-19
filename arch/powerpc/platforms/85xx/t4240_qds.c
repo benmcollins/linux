@@ -40,7 +40,8 @@ static int __init t4240_qds_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	if (of_flat_dt_is_compatible(root, "fsl,T4240QDS"))
+	if (of_flat_dt_is_compatible(root, "fsl,T4240QDS") ||
+	    of_flat_dt_is_compatible(root, "fsl,T4240RDB"))
 		return 1;
 
 	/* Check if we're running under the Freescale hypervisor */
