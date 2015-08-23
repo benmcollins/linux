@@ -45,8 +45,6 @@
 	aliases {
 		ethernet4 = &enet4;
 		ethernet9 = &enet9;
-		emi2_slot4 = &p4080xmdio1;
-		emi2_slot5 = &p4080xmdio3;
 	};
 
 	memory {
@@ -121,14 +119,9 @@
 		};
 
 		usb0: usb@210000 {
-			/* phy_type = "ulpi"; */
 		};
 
 		usb1: usb@211000 {
-			/*
-			dr_mode = "host";
-			phy_type = "ulpi";
-			*/
 		};
 
 		fman0: fman@400000 {
@@ -138,6 +131,15 @@
 			};
 
 			xmdio0: mdio@f1000 {
+				phy11: ethernet-phy@5 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x5>;
+				};
+
+				phy10: ethernet-phy@4 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x4>;
+				};
 			};
 		};
 
@@ -271,36 +273,6 @@
 				  0 0x00010000>;
 		};
 	};
-
-	mdio-mux-emi2 {
-		compatible = "mdio-mux-gpio";
-		gpios = <&gpio0 3 0>, <&gpio0 2 0>;
-		mdio-parent-bus = <&xmdio0>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		p4080xmdio1: mdio@1 {
-			reg = <1>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			phy11: ethernet-phy@0 {
-				compatible = "ethernet-phy-ieee802.3-c45";
-				reg = <0x4>;
-			};
-		};
-
-		p4080xmdio3: mdio@3 {
-			reg = <3>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			phy10: ethernet-phy@4 {
-				compatible = "ethernet-phy-ieee802.3-c45";
-				reg = <0x5>;
-			};
-		};
-        };
 
 	fsl,dpaa {
 		compatible = "fsl,p4080-dpaa", "fsl,dpaa";
