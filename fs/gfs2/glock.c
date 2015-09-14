@@ -1427,12 +1427,12 @@ __acquires(&lru_lock)
  * gfs2_dispose_glock_lru() above.
  */
 
-static long gfs2_scan_glock_lru(int nr)
+static unsigned long gfs2_scan_glock_lru(int nr)
 {
 	struct gfs2_glock *gl;
 	LIST_HEAD(skipped);
 	LIST_HEAD(dispose);
-	long freed = 0;
+	unsigned long freed = 0;
 
 	spin_lock(&lru_lock);
 	while ((nr-- >= 0) && !list_empty(&lru_list)) {
