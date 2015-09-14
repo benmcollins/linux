@@ -17,6 +17,10 @@
 
 #ifndef __ASSEMBLY__
 
+#ifdef CONFIG_64BIT_PGOFF
+#define pgoff_t unsigned long long
+#endif
+
 typedef __vector128 vector128;
 
 typedef struct {

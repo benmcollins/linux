@@ -17,6 +17,7 @@ config WORD_SIZE
 	default 64 if PPC64
 	default 32 if !PPC64
 
+
 config ARCH_PHYS_ADDR_T_64BIT
        def_bool PPC64 || PHYS_64BIT
 
@@ -32,6 +33,16 @@ config HAVE_SETUP_PER_CPU_AREA
 
 config NEED_PER_CPU_EMBED_FIRST_CHUNK
 	def_bool PPC64
+
+if PPC32
+
+config 64BIT_PGOFF
+	bool "Enable 64-bit page offset"
+	default n
+	help
+	  This allows using > 16TB filesystems, but at the cost of performance.
+
+endif
 
 config NR_IRQS
 	int "Number of virtual interrupt numbers"
