@@ -275,7 +275,7 @@ void truncate_inode_pages_range(struct address_space *mapping,
 
 			if (!trylock_page(page))
 				continue;
-			WARN_ON(page->index != index);
+			// WARN_ON(page->index != index);
 			if (PageWriteback(page)) {
 				unlock_page(page);
 				continue;
