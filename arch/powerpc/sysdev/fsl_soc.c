@@ -42,12 +42,30 @@
 #include <mm/mmu_decl.h>
 #include <asm/cpm2.h>
 #include <asm/fsl_hcalls.h>	/* For the Freescale hypervisor */
-
+#include <linux/gpio.h>
 extern void init_fcc_ioports(struct fs_platform_info*);
 extern void init_fec_ioports(struct fs_platform_info*);
 extern void init_smc_ioports(struct fs_uart_platform_info*);
 static phys_addr_t immrbase = -1;
 static phys_addr_t dcsrbase = -1;
+
+static struct gpio reset_gpios[] = {
+	{ 135, GPIOF_OUT_INIT_HIGH, "T4 Reset" },
+};
+
+static void t4_reset(void)
+{
+	int err = gpio_request_array(reset_gpios, ARRAY_SIZE(reset_gpios));
+
+	if (err) {
+		printk(KERN_INFO "Error gpio request not accepted");
+		return;
+	}
+
+	printk(KERN_INFO "Reboot T4MFCS\n");
+	gpio_direction_output(135, 0);
+}
+
 
 phys_addr_t get_dcsrbase(void)
 {
@@ -292,6 +310,8 @@ void fsl_rstcr_restart(char *cmd)
 	if (rstcr)
 		/* set reset control register */
 		out_be32(rstcr, 0x2);	/* HRESET_REQ */
+
+	t4_reset();
 
 	while (1) ;
 }

@@ -148,18 +148,25 @@
 	interrupts = <16 2 1 11>;
 	#address-cells = <2>;
 	#size-cells = <2>;
+	fsl,srio-rmu-handle = <&rmu>;
+        fsl,iommu-parent = <&pamu0>;
+
 	ranges;
 
 	port1 {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		cell-index = <1>;
+	/*	fsl,liodn-reg = <&guts 0x3000>; /* RIO1LIODNR */
+
 	};
 
 	port2 {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		cell-index = <2>;
+/*		fsl,liodn-reg = <&guts 0x3200>; /* RIO2LIODNR */
+
 	};
 };
 
@@ -1076,10 +1083,52 @@
 	iommu@20000 {
 		compatible = "fsl,pamu-v1.0", "fsl,pamu";
 		reg = <0x20000 0x6000>;
+		 ranges = <0 0x20000 0x5000>;
+                #address-cells = <1>;
+                #size-cells = <1>;
+
 		interrupts = <
 			24 2 0 0
 			16 2 1 30>;
-	};
+pamu0: pamu@0 {
+                        reg = <0 0x1000>;
+                        fsl,primary-cache-geometry = <32 1>;
+                        fsl,secondary-cache-geometry = <128 2>;
+                };
+
+                pamu1: pamu@1000 {
+                        reg = <0x1000 0x1000>;
+                        fsl,primary-cache-geometry = <32 1>;
+                        fsl,secondary-cache-geometry = <128 2>;
+                };
+
+                pamu2: pamu@2000 {
+                        reg = <0x2000 0x1000>;
+                        fsl,primary-cache-geometry = <32 1>;
+                        fsl,secondary-cache-geometry = <128 2>;
+                };
+
+                pamu3: pamu@3000 {
+                        reg = <0x3000 0x1000>;
+                        fsl,primary-cache-geometry = <32 1>;
+                        fsl,secondary-cache-geometry = <128 2>;
+                };
+
+                pamu4: pamu@4000 {
+                        reg = <0x4000 0x1000>;
+                        fsl,primary-cache-geometry = <32 1>;
+                        fsl,secondary-cache-geometry = <128 2>;
+                };
+        };
+
+/include/ "qoriq-rmu-0.dtsi"
+        rmu@d3000 {
+                fsl,iommu-parent = <&pamu0>;
+                fsl,liodn-reg = <&guts 0x540>; /* RMULIODNR */
+        };
+
+
+
 
 /include/ "qoriq-mpic4.3.dtsi"
 
@@ -1240,6 +1289,9 @@
 /include/ "qoriq-fman3-0-1g-5.dtsi"
 /include/ "qoriq-fman3-0-10g-0.dtsi"
 /include/ "qoriq-fman3-0-10g-1.dtsi"
+
+
+
 	fman0: fman@400000 {
 		/* tx - 1g - 0 */
 		port@a8000 {

@@ -66,10 +66,26 @@ static void fsl_msi_end_irq(struct irq_data *d)
 {
 }
 
+extern void mpic_set_destination(unsigned int virq, unsigned int cpuid);
+static int mpic_set_affinity(struct irq_data *d, const struct cpumask *cpumask,
+		                      bool force)
+{
+	int cpuid = irq_choose_cpu(cpumask);
+	struct irq_domain *domain = d->domain;
+	struct fsl_msi *msi = (struct fsl_msi *)(domain->host_data);
+	unsigned int hwirq = irqd_to_hwirq(d);
+	int irq_index = (hwirq >> MSIIR1_SRS_SHIFT) & MSI_SRS_MASK;
+	int virt_msir = msi->msi_virqs[irq_index];
+	mpic_set_destination(virt_msir, cpuid);
+
+	return IRQ_SET_MASK_OK;
+}
+
 static struct irq_chip fsl_msi_chip = {
 	.irq_mask	= mask_msi_irq,
 	.irq_unmask	= unmask_msi_irq,
 	.irq_ack	= fsl_msi_end_irq,
+	.irq_set_affinity = mpic_set_affinity,
 	.name		= "FSL-MSI",
 };
 
