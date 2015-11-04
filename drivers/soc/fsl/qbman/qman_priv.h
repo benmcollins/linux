@@ -34,7 +34,10 @@
 
 #include <soc/fsl/qman.h>
 #include <linux/iommu.h>
+
+#if defined(CONFIG_FSL_PAMU)
 #include <asm/fsl_pamu_stash.h>
+#endif
 
 /* Congestion Groups */
 

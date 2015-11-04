@@ -440,6 +440,7 @@ __setup("qportals=", parse_qportals);
 static void qman_portal_update_sdest(const struct qm_portal_config *pcfg,
 							unsigned int cpu)
 {
+#ifdef CONFIG_FSL_PAMU /* TODO */
 	struct pamu_stash_attribute stash_attr;
 	int ret;
 
@@ -453,6 +454,7 @@ static void qman_portal_update_sdest(const struct qm_portal_config *pcfg,
 			return;
 		}
 	}
+#endif
 #ifdef CONFIG_FSL_QMAN_CONFIG
 	if (qman_set_sdest(pcfg->public_cfg.channel, cpu))
 #endif
