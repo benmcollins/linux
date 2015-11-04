@@ -270,7 +270,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 	pcfg->public_cfg.channel = *channel;
 	pcfg->public_cfg.cpu = -1;
 	irq = irq_of_parse_and_map(node, 0);
-	if (irq == NO_IRQ) {
+	if (irq <= 0) {
 		pr_err("Can't get %s property 'interrupts'\n", node->full_name);
 		goto err;
 	}

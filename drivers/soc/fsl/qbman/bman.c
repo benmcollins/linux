@@ -320,7 +320,7 @@ static int of_fsl_bman_probe(struct platform_device *ofdev)
 	bm_set_memory(bm_ccsr_start, fbpr_a, 0, fbpr_sz);
 
 	err_irq = of_irq_to_resource(node, 0, NULL);
-	if (err_irq == NO_IRQ) {
+	if (err_irq <= 0) {
 		dev_info(dev, "Can't get %s property 'interrupts'\n",
 			 node->full_name);
 		return -ENODEV;

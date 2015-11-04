@@ -208,7 +208,7 @@ static int __cold bman_portal_probe(struct platform_device *of_dev)
 	pcfg->public_cfg.cpu = -1;
 
 	irq = irq_of_parse_and_map(node, 0);
-	if (irq == NO_IRQ) {
+	if (irq <= 0) {
 		dev_err(dev, "Can't get %s property 'interrupts'\n",
 			node->full_name);
 		return -ENXIO;

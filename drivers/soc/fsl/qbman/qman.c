@@ -662,7 +662,7 @@ static int __bind_irq(void)
 	int ret, err_irq;
 
 	err_irq = of_irq_to_resource(qm_node, 0, NULL);
-	if (err_irq == NO_IRQ) {
+	if (err_irq <= 0) {
 		pr_info("Can't get %s property 'interrupts'\n",
 			qm_node->full_name);
 		return -ENODEV;
