@@ -791,7 +791,7 @@ static int qman_ccsrmempeek(u32 *val, u32 offset)
 		pr_err("%s(): ioremap() failed\n", __func__);
 		return -EINVAL;
 	}
-	*val = in_be32(addr);
+	*val = ioread32be(addr);
 	iounmap(addr);
 	return 0;
 }
