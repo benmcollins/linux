@@ -680,11 +680,34 @@ static void __early_init_mmu(int boot_cpu)
 
 #ifdef CONFIG_PPC_FSL_BOOK3E
 	if (mmu_has_feature(MMU_FTR_TYPE_FSL_E)) {
+		struct memblock_region *reg;
 		unsigned int num_cams;
+		unsigned long ram, virt, new_top = 0;
+		int idx = 0;
 
 		/* use a quarter of the TLBCAM for bolted linear map */
 		num_cams = (mfspr(SPRN_TLB1CFG) & TLBnCFG_N_ENTRY) / 4;
-		linear_map_top = map_mem_in_cams(linear_map_top, num_cams);
+
+		for_each_memblock(memory, reg) {
+			virt = reg->base + PAGE_OFFSET;
+
+			ram = map_mem_in_cams(reg->base, reg->size, virt,
+					      &idx, num_cams);
+
+			if (!ram)
+				continue;
+
+			/* There should be no overlaps in memblocks, so
+			 * don't check for them. */
+			if (reg->base >= new_top)
+				new_top = reg->base + ram;
+
+			/* Stop if we don't have any more cams left. */
+			if (idx == num_cams)
+				break;
+		}
+
+		linear_map_top = new_top;
 
 		if (boot_cpu) {
 			/* limit memory so we dont have linear faults */

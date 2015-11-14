@@ -172,26 +172,27 @@ unsigned long calc_cam_sz(unsigned long ram, unsigned long virt,
 	return 1UL << camsize;
 }
 
-unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx)
+unsigned long map_mem_in_cams(phys_addr_t phys, unsigned long size,
+			      unsigned long virt, int *idx,
+			      int max_cam_idx)
 {
-	int i;
-	unsigned long virt = PAGE_OFFSET;
-	phys_addr_t phys = memstart_addr;
 	unsigned long amount_mapped = 0;
+	int i;
 
 	/* Calculate CAM values */
-	for (i = 0; ram && i < max_cam_idx; i++) {
+	for (i = *idx; size && i < max_cam_idx; i++) {
 		unsigned long cam_sz;
 
-		cam_sz = calc_cam_sz(ram, virt, phys);
+		cam_sz = calc_cam_sz(size, virt, phys);
+
 		settlbcam(i, virt, phys, cam_sz, PAGE_KERNEL_X, 0);
 
-		ram -= cam_sz;
+		size -= cam_sz;
 		amount_mapped += cam_sz;
 		virt += cam_sz;
 		phys += cam_sz;
 	}
-	tlbcam_index = i;
+	tlbcam_index = *idx = i;
 
 #ifdef CONFIG_PPC64
 	get_paca()->tlb_per_core.esel_next = i;
@@ -234,12 +235,13 @@ void __init MMU_init_hw(void)
 void __init adjust_total_lowmem(void)
 {
 	unsigned long ram;
-	int i;
+	int i, idx = 0;
 
 	/* adjust lowmem size to __max_low_memory */
 	ram = min((phys_addr_t)__max_low_memory, (phys_addr_t)total_lowmem);
 
-	__max_low_memory = map_mem_in_cams(ram, CONFIG_LOWMEM_CAM_NUM);
+	__max_low_memory = map_mem_in_cams(memstart_addr, ram, PAGE_OFFSET,
+					   &idx, CONFIG_LOWMEM_CAM_NUM);
 
 	pr_info("Memory CAM mapping: ");
 	for (i = 0; i < tlbcam_index - 1; i++)
