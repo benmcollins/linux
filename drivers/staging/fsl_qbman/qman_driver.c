@@ -502,7 +502,8 @@ static void portal_set_cpu(struct qm_portal_config *pcfg, int cpu)
 	}
 	geom_attr.aperture_start = 0;
 	geom_attr.aperture_end =
-		((dma_addr_t)1 << min(8 * sizeof(dma_addr_t), (size_t)36)) - 1;
+		((dma_addr_t)1 << min(8 * sizeof(dma_addr_t),
+		 (size_t)CONFIG_FSL_PAMU_PHYS_BITS)) - 1;
 	geom_attr.force_aperture = true;
 	ret = iommu_domain_set_attr(pcfg->iommu_domain, DOMAIN_ATTR_GEOMETRY,
 				    &geom_attr);
@@ -530,7 +531,8 @@ static void portal_set_cpu(struct qm_portal_config *pcfg, int cpu)
 			   __func__, ret);
 		goto _iommu_domain_free;
 	}
-	ret = iommu_domain_window_enable(pcfg->iommu_domain, 0, 0, 1ULL << 36,
+	ret = iommu_domain_window_enable(pcfg->iommu_domain, 0, 0,
+					 1ULL << CONFIG_FSL_PAMU_PHYS_BITS,
 					 IOMMU_READ | IOMMU_WRITE);
 	if (ret < 0) {
 		pr_err(KBUILD_MODNAME ":%s(): iommu_domain_window_enable() = %d",

@@ -515,9 +515,9 @@ static int fsl_pamu_domain_init(struct iommu_domain *domain)
 	}
 	domain->priv = dma_domain;
 	dma_domain->iommu_domain = domain;
-	/* defaul geometry 64 GB i.e. maximum system address */
+	/* Set default geometry based on physical address limit. */
 	domain->geometry.aperture_start = 0;
-	domain->geometry.aperture_end = (1ULL << 36) - 1;
+	domain->geometry.aperture_end = (1ULL << CONFIG_FSL_PAMU_PHYS_BITS) - 1;
 	domain->geometry.force_aperture = true;
 
 	return 0;

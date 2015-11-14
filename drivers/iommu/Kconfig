@@ -39,6 +39,12 @@ config FSL_PAMU
 	  PAMU can authorize memory access, remap the memory address, and remap I/O
 	  transaction types.
 
+config FSL_PAMU_PHYS_BITS
+        int
+	default 40 if PPC64
+	default 36 if !PPC64
+	depends on FSL_PAMU
+
 # MSM IOMMU support
 config MSM_IOMMU
 	bool "MSM IOMMU Support"

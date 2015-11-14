@@ -310,7 +310,7 @@ static void setup_default_ppaace(struct paace *ppaace)
 {
 	pamu_init_ppaace(ppaace);
 	/* window size is 2^(WSE+1) bytes */
-	set_bf(ppaace->addr_bitfields, PPAACE_AF_WSE, 35);
+	set_bf(ppaace->addr_bitfields, PPAACE_AF_WSE, (CONFIG_FSL_PAMU_PHYS_BITS - 1));
 	ppaace->wbah = 0;
 	set_bf(ppaace->addr_bitfields, PPAACE_AF_WBAL, 0);
 	set_bf(ppaace->impl_attr, PAACE_IA_ATM,
