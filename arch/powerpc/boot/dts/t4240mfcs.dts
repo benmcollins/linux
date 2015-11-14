@@ -359,7 +359,7 @@ DPAA
 
 			mdio0: mdio@fc000 {
 				sgmiiphy21: ethernet-phy@0 {
-					reg = <0x08>;
+					reg = <0x01>;
 				};
 
 				sgmiiphy22: ethernet-phy@1 {
