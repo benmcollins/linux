@@ -2970,3 +2970,5 @@ static void __exit fman_unload(void)
 }
 module_exit(fman_unload);
 
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_DESCRIPTION("Freescale DPAA Frame Manager driver");
