@@ -1797,3 +1797,5 @@ static void __exit fman_port_unload(void)
 }
 module_exit(fman_port_unload);
 
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_DESCRIPTION("Freescale DPAA Frame Manager Port driver");
