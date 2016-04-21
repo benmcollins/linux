@@ -1127,7 +1127,7 @@ static int ocfs2_grab_pages_for_write(struct address_space *mapping,
 				      struct page *mmap_page)
 {
 	int ret = 0, i;
-	unsigned long start, target_index, end_index, index;
+	pgoff_t start, target_index, end_index, index;
 	struct inode *inode = mapping->host;
 	loff_t last_byte;
 

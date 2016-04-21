@@ -762,7 +762,7 @@ static inline unsigned long ocfs2_align_bytes_to_sectors(u64 bytes)
 }
 
 static inline unsigned int ocfs2_page_index_to_clusters(struct super_block *sb,
-							unsigned long pg_index)
+							pgoff_t pg_index)
 {
 	u32 clusters = pg_index;
 	unsigned int cbits = OCFS2_SB(sb)->s_clustersize_bits;

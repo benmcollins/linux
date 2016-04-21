@@ -6636,7 +6636,7 @@ int ocfs2_grab_pages(struct inode *inode, loff_t start, loff_t end,
 {
 	int numpages, ret = 0;
 	struct address_space *mapping = inode->i_mapping;
-	unsigned long index;
+	pgoff_t index;
 	loff_t last_page_bytes;
 
 	BUG_ON(start > end);

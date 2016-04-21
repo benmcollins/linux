@@ -1245,7 +1245,7 @@ TRACE_EVENT(ocfs2_write_end_inline,
 
 TRACE_EVENT(ocfs2_fault,
 	TP_PROTO(unsigned long long ino,
-		 void *area, void *page, unsigned long pgoff),
+		 void *area, void *page, unsigned long long pgoff),
 	TP_ARGS(ino, area, page, pgoff),
 	TP_STRUCT__entry(
 		__field(unsigned long long, ino)
@@ -1374,14 +1374,14 @@ TRACE_EVENT(ocfs2_extend_allocation_end,
 TRACE_EVENT(ocfs2_write_zero_page,
 	TP_PROTO(unsigned long long ino,
 		 unsigned long long abs_from, unsigned long long abs_to,
-		 unsigned long index, unsigned int zero_from,
+		 unsigned long long index, unsigned int zero_from,
 		 unsigned int zero_to),
 	TP_ARGS(ino, abs_from, abs_to, index, zero_from, zero_to),
 	TP_STRUCT__entry(
 		__field(unsigned long long, ino)
 		__field(unsigned long long, abs_from)
 		__field(unsigned long long, abs_to)
-		__field(unsigned long, index)
+		__field(unsigned long long, index)
 		__field(unsigned int, zero_from)
 		__field(unsigned int, zero_to)
 	),
