@@ -32,31 +32,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
-
-Device tree map for ethernet
-
-DPAA
-  ||
- ethernet@0 
-      ||
-    fsl,fman-mac = enet0
-                     ||
-               	enet0  => SGMII => FM1 MAC1
-
-
-DPAA
-  ||
- ethernet@6 
-      ||
-    fsl,fman-mac = enet6
-                     ||
-                enet6  => XFI => FM1 MAC9
-
-
-
-*/
-
 /include/ "fsl/t4240si-pre.dtsi"
 
 / {
@@ -67,42 +42,42 @@ DPAA
 	interrupt-parent = <&mpic>;
 
 	aliases {
-		sgmii_phy21 = &sgmiiphy21;    /*FM1 MAC1*/
-		sgmii_phy22 = &sgmiiphy22;    /*FM1 MAC2*/
-		sgmii_phy23 = &sgmiiphy23;    /*FM1 MAC3*/
-		sgmii_phy24 = &sgmiiphy24;    /*FM1 MAC4*/   /*FM1 MAC6 Disabled*/
-		rgmii_phy   = &rgmiiphy;      /*FM1 MAC5*/
-		sgmii_phy41 = &sgmiiphy41;    /*FM2 MAC1*/
-		sgmii_phy42 = &sgmiiphy42;    /*FM2 MAC2*/
-		sgmii_phy43 = &sgmiiphy43;    /*FM2 MAC3*/
-		sgmii_phy44 = &sgmiiphy44;    /*FM2 MAC4*/    /*FM2 MAC5, FM2 MAC6 Disabled*/
-	        phy_xfi1 = &xfiphy1;          /*FM1 MAC9*/
-                phy_xfi2 = &xfiphy2;          /*FM1 MAC10*/ 
-                phy_xfi3 = &xfiphy3;          /*FM2 MAC9*/
-                phy_xfi4 = &xfiphy4;          /*FM2 MAC10*/
+		sgmii_phy21 = &sgmiiphy21;
+		sgmii_phy22 = &sgmiiphy22;
+		sgmii_phy23 = &sgmiiphy23;
+		sgmii_phy24 = &sgmiiphy24;
+		rgmii_phy   = &rgmiiphy;
+		sgmii_phy41 = &sgmiiphy41;
+		sgmii_phy42 = &sgmiiphy42;
+		sgmii_phy43 = &sgmiiphy43;
+		sgmii_phy44 = &sgmiiphy44;
+		phy_xfi1 = &xfiphy1;
+		phy_xfi2 = &xfiphy2;
+		phy_xfi3 = &xfiphy3;
+		phy_xfi4 = &xfiphy4;
 		/*DPAA*/
-		ethernet0 = &enet0;           /*FM1 MAC1 */
-		ethernet1 = &enet1;           /*FM1 MAC2 */
-		ethernet2 = &enet2;           /*FM1 MAC3 */
-		ethernet3 = &enet3;           /*FM1 MAC4*/
-		ethernet4 = &enet4;           /*FM1 MAC5 rgmii*/
-		ethernet5 = &enet5;           /*FM1 MAC6 disabled*/
-		ethernet6 = &enet6;           /*FM1 MAC9 XFI*/
-		ethernet7 = &enet7;           /*FM1 MAc10 XFI*/
-		ethernet8 = &enet8;           /*FM2 MAC1*/
-		ethernet9 = &enet9;           /*FM2 MAC2*/
-		ethernet10 = &enet10;         /*FM2 MAC3*/
-		ethernet11 = &enet11;         /*FM2 MAC4*/
-		ethernet12 = &enet12;         /*FM2 MAC5 disabled*/
-		ethernet13 = &enet13;         /*FM2 MAC6 disabled*/
-		ethernet14 = &enet14;         /*FM2 MAC9 XFI*/
-		ethernet15 = &enet15;         /*FM2 MAC10 XFi*/
+		ethernet0 = &enet0;
+		ethernet1 = &enet1;
+		ethernet2 = &enet2;
+		ethernet3 = &enet3;
+		ethernet4 = &enet4;
+		ethernet5 = &enet5;
+		ethernet6 = &enet6;
+		ethernet7 = &enet7;
+		ethernet8 = &enet8;
+		ethernet9 = &enet9;
+		ethernet10 = &enet10;
+		ethernet11 = &enet11;
+		ethernet12 = &enet12;
+		ethernet13 = &enet13;
+		ethernet14 = &enet14;
+		ethernet15 = &enet15;
 	};
 
 	ifc: localbus@ffe124000 {
 		reg = <0xf 0xfe124000 0 0x2000>;
-		ranges = <0 0 0xf 0xe8000000 0x08000000  /*NOR*/
-			  2 0 0xf 0xff800000 0x00010000  
+		ranges = <0 0 0xf 0xe8000000 0x08000000
+			  2 0 0xf 0xff800000 0x00010000
 			  3 0 0xf 0xffdf0000 0x00008000>;
 
 		nor@0,0 {
@@ -161,10 +136,6 @@ DPAA
 				compatible = "at24,24c256";
 				reg = <0x50>;
 			};
-	/*		eeprom@52 {
-				compatible = "at24,24c256";
-				reg = <0x52>;
-			};*/
 			eeprom@54 {
 				compatible = "at24,24c256";
 				reg = <0x54>;
@@ -252,42 +223,41 @@ DPAA
 
 
 		fman0: fman@400000 {
-			enet0: ethernet@e0000 {    /*FM1 EMAC1*/
-				phy-handle = <&sgmiiphy21>;
+			enet0: ethernet@e0000 {
+				phy-handle = <&sgmiiphy21>; /*FM1 MAC1*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet1: ethernet@e2000 {   /*FM1 EMAC2*/
-				phy-handle = <&sgmiiphy22>;
+			enet1: ethernet@e2000 {
+				phy-handle = <&sgmiiphy22>; /*FM1 MAC2*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet2: ethernet@e4000 {  /*FM1 EMAC3*/
-				phy-handle = <&sgmiiphy23>;
+			enet2: ethernet@e4000 {
+				phy-handle = <&sgmiiphy23>; /*FM1 MAC3*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet3: ethernet@e6000 {  /*FM1 EMAC4*/
-				phy-handle = <&sgmiiphy24>;
+			enet3: ethernet@e6000 {
+				phy-handle = <&sgmiiphy24>; /*FM1 MAC4*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet4: ethernet@e8000 {  /*FM1 EMAC5*/
-				/*status = "disabled";*/
+			enet4: ethernet@e8000 { /*FM1 MAC5*/
 				phy-handle = <&rgmiiphy>;
-                                phy-connection-type = "rgmii";
+				phy-connection-type = "rgmii";
 			};
 
-			enet5: ethernet@ea000 {  /*FM1 EMAC6*/
+			enet5: ethernet@ea000 { /*FM1 MAC6*/
 				status = "disabled";
 			};
 
-			enet6: ethernet@f0000 { /* FM1@TSEC9/FM1@TGEC1  FM1 MAC9 */
+			enet6: ethernet@f0000 { /* FM1@TSEC9/FM1@TGEC1 */
 				phy-handle = <&xfiphy1>;
 				phy-connection-type = "xgmii";
 			};
 
-			enet7: ethernet@f2000 { /* FM1@TSEC10/FM1@TGEC2 FM1 MAC10 */
+			enet7: ethernet@f2000 { /* FM1@TSEC10/FM1@TGEC2 */
 				phy-handle = <&xfiphy2>;
 				phy-connection-type = "xgmii";
 			};
@@ -318,52 +288,52 @@ DPAA
 		};
 
 		fman1: fman@500000 {
-			enet8: ethernet@e0000 {  /*FM2 EMAC1*/
-				phy-handle = <&sgmiiphy41>;
+			enet8: ethernet@e0000 {
+				phy-handle = <&sgmiiphy41>; /*FM2 MAC1*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet9: ethernet@e2000 {  /*FM2 EMAC2*/
-				phy-handle = <&sgmiiphy42>;
+			enet9: ethernet@e2000 {
+				phy-handle = <&sgmiiphy42>;/*FM2 MAC2*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet10: ethernet@e4000 {  /*FM2 EMAC3*/
-				phy-handle = <&sgmiiphy43>;
+			enet10: ethernet@e4000 {
+				phy-handle = <&sgmiiphy43>;/*FM2 MAC3*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet11: ethernet@e6000 {  /*FM2 EMAC4*/
-				phy-handle = <&sgmiiphy44>;
+			enet11: ethernet@e6000 {
+				phy-handle = <&sgmiiphy44>;/*FM2 MAC4*/
 				phy-connection-type = "sgmii";
 			};
 
-			enet12: ethernet@e8000 {  /*FM2 EMAC5*/
+			enet12: ethernet@e8000 { /*FM2 MAC5*/
 				fixed-link = <1 1 100 0 0 >;
 				phy-connection-type = "rgmii";
 			};
 
-			enet13: ethernet@ea000 {  /*FM2 EMAC6*/
+			enet13: ethernet@ea000 { /*FM2 MAC6*/
 				status = "disabled";
 			};
 
-			enet14: ethernet@f0000 { /* FM2@TSEC9/FM2@TGEC1 FM2 MAC1 */
+			enet14: ethernet@f0000 { /* FM2@TSEC9/FM2@TGEC1 */
 				phy-handle = <&xfiphy3>;
 				phy-connection-type = "xgmii";
 			};
 
-			enet15: ethernet@f2000 { /* FM2@TSEC10/FM2@TGEC2 FM2 MAC2*/
+			enet15: ethernet@f2000 { /* FM2@TSEC10/FM2@TGEC2 */
 				phy-handle = <&xfiphy4>;
 				phy-connection-type = "xgmii";
 			};
 
 			mdio0: mdio@fc000 {
 				sgmiiphy21: ethernet-phy@0 {
-					reg = <0x01>;
+					reg = <0x1>;
 				};
 
 				sgmiiphy22: ethernet-phy@1 {
-					reg = <0x09>;
+					reg = <0x9>;
 				};
 
 				sgmiiphy23: ethernet-phy@2 {
@@ -391,9 +361,8 @@ DPAA
 				};
 				
 				rgmiiphy: ethernet-phy@8 {
-                                        reg = <0x8>;
-                                };
-
+					reg = <0x8>;
+				};
 			};
 
 			xmdio0: mdio@fd000 {
@@ -436,18 +405,11 @@ DPAA
 			voltage-ranges = <1800 1800 3300 3300>;
 		};
 	};
-/*
-	     00: configuration space
-    	     01: I/O space
-             10: 32 bit memory space
-             11: 64 bit memory space 
 
-*/
-
-	pci0: pcie@ffe240000 { /*PCI Express controller 1*/
+	pci0: pcie@ffe240000 {
 		reg = <0xf 0xfe240000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0x0 0x20000000    /*<configuration space    child addr    cpu access addr    size*/
-			  0x01000000 0 0x00000000 0xf 0xf8000000 0x0 0x00010000>;  /* I/O space  child addr  cpu access addr    size>*/
+		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0x0 0x20000000
+			  0x01000000 0 0x00000000 0xf 0xf8000000 0x0 0x00010000>;
 
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
@@ -510,24 +472,13 @@ DPAA
 		port1 {
 			ranges = <0 0 0xc 0x20000000 0 0x10000000>;
 		};
-/*
-		port2 {
-			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
-		};
-*/		
 	};
 
 	fsl,dpaa {
 		compatible = "fsl,t4240-dpaa", "fsl,dpaa";
 		ethernet@0 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
-			/*The compatible string used to define a private interface 
-			in device tree is „fsl,dpa-ethernet*/
-			fsl,fman-mac = <&enet0>;  
-			/* “ fsl,fman-mac” is the reference to the MAC device connected 
-			to this interface. This property is used to determine which RX 
-			and TX ports are connected to this interface. This is the MAC device 
-			reference that will be initialized by the Proxy Driver*/
+			fsl,fman-mac = <&enet0>;
 		};
 		ethernet@1 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
@@ -544,7 +495,6 @@ DPAA
 		ethernet@4 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet4>;
-	/*		status = "disabled"; */
 		};
 		ethernet@5 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
