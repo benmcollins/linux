@@ -2449,7 +2449,7 @@ EXPORT_SYMBOL(fman_get_mem_region);
 #define FSL_FM_RX_EXTRA_HEADROOM_MAX	384
 
 /* Maximum frame length */
-#define FSL_FM_MAX_FRAME_SIZE			1522
+#define FSL_FM_MAX_FRAME_SIZE			9022
 #define FSL_FM_MAX_POSSIBLE_FRAME_SIZE		9600
 #define FSL_FM_MIN_POSSIBLE_FRAME_SIZE		64
 
@@ -2740,7 +2740,7 @@ static struct fman *read_dts_node(struct platform_device *of_dev)
 	const u32 *u32_prop;
 	int lenp, err, irq;
 	struct clk *clk;
-	u32 clk_rate;
+	u32 clk_rate = 0;
 	phys_addr_t phys_base_addr;
 	resource_size_t mem_size;
 
@@ -2791,18 +2791,15 @@ static struct fman *read_dts_node(struct platform_device *of_dev)
 	mem_size = resource_size(res);
 
 	clk = of_clk_get(fm_node, 0);
-	if (IS_ERR(clk)) {
-		dev_err(&of_dev->dev, "%s: Failed to get FM%d clock structure\n",
-			__func__, fman->dts_params.id);
-		goto fman_node_put;
+	if (!IS_ERR(clk))
+		clk_rate = clk_get_rate(clk);
+
+	if (!clk_rate) {
+		dev_err(&of_dev->dev, "%s: Failed to get clk_rate, using 600MHz fallback\n",
+			__func__);
+		clk_rate = 600000000;
 	}
 
-	clk_rate = clk_get_rate(clk);
-	if (!clk_rate) {
-		dev_err(&of_dev->dev, "%s: Failed to determine FM%d clock rate\n",
-			__func__, fman->dts_params.id);
-		goto fman_node_put;
-	}
 	/* Rounding to MHz */
 	fman->dts_params.clk_freq = DIV_ROUND_UP(clk_rate, 1000000);
 
