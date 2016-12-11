@@ -7,12 +7,12 @@ bt4)
 	target="$1"
 	dtb="t4240mfcs"
 	;;
-jade)
+ct1)
 	target="$1"
 	dtb="cts1000"
 	;;
 *)
-	echo "Pick one of jade or bt4" 1>&2
+	echo "Pick one of ct1 or bt4" 1>&2
 	exit 1
 esac
 
