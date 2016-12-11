@@ -755,6 +755,11 @@ int crypto_run_asym(struct cryptodev_pkc *pkc)
 	/* todo - fix alloc-free on error path */
 	pkc->req->type = pkc_req_type;
 	err = call_next_action(pkc);
+	if (err) {
+		kfree(pkc->req);
+		crypto_free_pkc(pkc->s);
+		return err;
+	}
 	if (pkc->type == SYNCHRONOUS)
 		kfree(pkc->req);
 

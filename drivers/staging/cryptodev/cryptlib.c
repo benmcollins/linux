@@ -443,15 +443,11 @@ int cryptodev_pkc_offload(struct cryptodev_pkc *pkc)
 				 cryptodev_complete_asym, pkc);
 	ret = crypto_pkc_op(pkc->req);
 	if (ret != -EINPROGRESS && ret != 0)
-		goto error;
+		return ret;
 
 	if (pkc->type == SYNCHRONOUS)
 		ret = waitfor(&pkc->result, ret);
 
 	return ret;
 
-error:
-	kfree(pkc->req);
-	crypto_free_pkc(pkc->s);
-	return ret;
 }
