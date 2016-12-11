@@ -21,4 +21,6 @@ ifneq ($(CONFIG_CRYPTO_DEV_FSL_CAAM_CRYPTO_API_QI),)
 endif
 
 obj-$(CONFIG_FSL_CAAM_PKC_SUPPORT) += caam_pkc.o
-caam_pkc-objs := caampkc.o pkc_desc.o
+caam_pkc-objs := caampkc.o  pkc_desc.o
+obj-$(CONFIG_FSL_CAAM_PRF_SUPPORT) += caam_prf.o
+caam_prf-objs := caamprf.o prf_desc.o
