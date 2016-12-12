@@ -2143,7 +2143,7 @@ CONFIG_FSL_PME2_STAT_ACCUMULATOR_UPDATE_INTERVAL=3400
 # CONFIG_XILLYBUS is not set
 # CONFIG_DGNC is not set
 # CONFIG_DGAP is not set
-# CONFIG_CRYPTODEV is not set
+CONFIG_CRYPTODEV=y
 
 #
 # SOC (System On Chip) specific Drivers
