@@ -574,7 +574,7 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm)
 {
 	struct crypto_alg *alg;
 
-	if (unlikely(!mem))
+	if (unlikely(!mem) || unlikely(!tfm->__crt_alg))
 		return;
 
 	alg = tfm->__crt_alg;
