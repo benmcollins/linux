@@ -287,8 +287,7 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 		return -EINVAL;
 	}
 
-	/* Create a session and put it to the list. Zeroing the structure helps
-	 * also with a single exit point in case of errors */
+	/* Create a session and put it to the list. */
 	ses_new = kzalloc(sizeof(*ses_new), GFP_KERNEL);
 	if (!ses_new)
 		return -ENOMEM;
@@ -300,19 +299,19 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 		if (unlikely(ret < 0)) {
 			ddebug(1, "Setting key failed for %s-%zu.",
 				alg_name, (size_t)sop->keylen*8);
-			goto session_error;
+			goto error_cipher;
 		}
 
 		ret = cryptodev_get_cipher_key(keys.ckey, sop, aead);
 		if (unlikely(ret < 0))
-			goto session_error;
+			goto error_cipher;
 
 		ret = cryptodev_cipher_init(&ses_new->cdata, alg_name, keys.ckey,
 						keylen, stream, aead);
 		if (ret < 0) {
 			ddebug(1, "Failed to load cipher for %s", alg_name);
 			ret = -EINVAL;
-			goto session_error;
+			goto error_cipher;
 		}
 	}
 
@@ -321,13 +320,13 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 			ddebug(1, "Setting key failed for %s-%zu.",
 				hash_name, (size_t)sop->mackeylen*8);
 			ret = -EINVAL;
-			goto session_error;
+			goto error_hash;
 		}
 
 		if (sop->mackey && unlikely(copy_from_user(keys.mkey, sop->mackey,
 					    sop->mackeylen))) {
 			ret = -EFAULT;
-			goto session_error;
+			goto error_hash;
 		}
 
 		ret = cryptodev_hash_init(&ses_new->hdata, hash_name, hmac_mode,
@@ -335,12 +334,7 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 		if (ret != 0) {
 			ddebug(1, "Failed to load hash for %s", hash_name);
 			ret = -EINVAL;
-			goto session_error;
-		}
-
-		ret = cryptodev_hash_reset(&ses_new->hdata);
-		if (ret != 0) {
-			goto session_error;
+			goto error_hash;
 		}
 	}
 
@@ -357,7 +351,7 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	if (ses_new->sg == NULL || ses_new->pages == NULL) {
 		ddebug(0, "Memory error");
 		ret = -ENOMEM;
-		goto session_error;
+		goto error_hash;
 	}
 
 	/* put the new session to the list */
@@ -381,141 +375,19 @@ restart:
 
 	/* Fill in some values for the user. */
 	sop->ses = ses_new->sid;
-	return 0;
 
-	/* We count on ses_new to be initialized with zeroes
-	 * Since hdata and cdata are embedded within ses_new, it follows that
-	 * hdata->init and cdata->init are either zero or one as they have been
-	 * initialized or not */
-session_error:
-	cryptodev_hash_deinit(&ses_new->hdata);
-	cryptodev_cipher_deinit(&ses_new->cdata);
-	kfree(ses_new->sg);
-	kfree(ses_new->pages);
-	kfree(ses_new);
-	return ret;
-}
-
-static inline void hash_destroy_session(struct csession *ses_ptr)
-{
-	cryptodev_hash_deinit(&ses_ptr->hdata);
-	kfree(ses_ptr->pages);
-	kfree(ses_ptr->sg);
-	kfree(ses_ptr);
-}
-
-static int hash_create_session(struct hash_op_data *hash_op)
-{
-	struct csession	*ses;
-	int ret = 0;
-	const char *hash_name;
-	int hmac_mode = 1;
-	uint8_t mkey[CRYPTO_HMAC_MAX_KEY_LEN];
-
-	switch (hash_op->mac_op) {
-	case CRYPTO_MD5_HMAC:
-		hash_name = "hmac(md5)";
-		break;
-	case CRYPTO_RIPEMD160_HMAC:
-		hash_name = "hmac(rmd160)";
-		break;
-	case CRYPTO_SHA1_HMAC:
-		hash_name = "hmac(sha1)";
-		break;
-	case CRYPTO_SHA2_224_HMAC:
-		hash_name = "hmac(sha224)";
-		break;
-	case CRYPTO_SHA2_256_HMAC:
-		hash_name = "hmac(sha256)";
-		break;
-	case CRYPTO_SHA2_384_HMAC:
-		hash_name = "hmac(sha384)";
-		break;
-	case CRYPTO_SHA2_512_HMAC:
-		hash_name = "hmac(sha512)";
-		break;
-	/* non-hmac cases */
-	case CRYPTO_MD5:
-		hash_name = "md5";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_RIPEMD160:
-		hash_name = "rmd160";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_SHA1:
-		hash_name = "sha1";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_SHA2_224:
-		hash_name = "sha224";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_SHA2_256:
-		hash_name = "sha256";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_SHA2_384:
-		hash_name = "sha384";
-		hmac_mode = 0;
-		break;
-	case CRYPTO_SHA2_512:
-		hash_name = "sha512";
-		hmac_mode = 0;
-		break;
-	default:
-		ddebug(1, "bad mac: %d", hash_op->mac_op);
-		return -EINVAL;
-	}
-
-	ses = kzalloc(sizeof(*ses), GFP_KERNEL);
-	if (!ses) {
-		return -ENOMEM;
-	}
-
-	if (unlikely(hash_op->mackeylen > CRYPTO_HMAC_MAX_KEY_LEN)) {
-		ddebug(1, "Setting key failed for %s-%zu.", hash_name,
-		       (size_t)hash_op->mackeylen * 8);
-		ret = -EINVAL;
-		goto error_hash;
-	}
-
-	if (hash_op->mackey &&
-	    unlikely(copy_from_user(mkey, hash_op->mackey, hash_op->mackeylen))) {
-		ret = -EFAULT;
-		goto error_hash;
-	}
-
-	ret = cryptodev_hash_init(&ses->hdata, hash_name, hmac_mode,
-			mkey, hash_op->mackeylen);
-	if (ret != 0) {
-		ddebug(1, "Failed to load hash for %s", hash_name);
-		ret = -EINVAL;
-		goto error_hash;
-	}
-
-	ses->alignmask = ses->hdata.alignmask;
-	ddebug(2, "got alignmask %d", ses->alignmask);
-
-	ses->array_size = DEFAULT_PREALLOC_PAGES;
-	ddebug(2, "preallocating for %d user pages", ses->array_size);
-
-	ses->pages = kzalloc(ses->array_size * sizeof(struct page *), GFP_KERNEL);
-	ses->sg = kzalloc(ses->array_size * sizeof(struct scatterlist), GFP_KERNEL);
-	if (ses->sg == NULL || ses->pages == NULL) {
-		ddebug(0, "Memory error");
-		ret = -ENOMEM;
-		goto error_hash;
-	}
-
-	hash_op->ses = ses;
 	return 0;
 
 error_hash:
-	hash_destroy_session(ses);
-	return ret;
-}
+	cryptodev_cipher_deinit(&ses_new->cdata);
+	kfree(ses_new->sg);
+	kfree(ses_new->pages);
+error_cipher:
+	kfree(ses_new);
 
+	return ret;
+
+}
 
 /* Everything that needs to be done when remowing a session. */
 static inline void
@@ -838,13 +710,13 @@ static int crypto_async_fetch_asym(struct cryptodev_pkc *pkc)
 	case CRK_MOD_EXP:
 	{
 		struct rsa_pub_req_s *rsa_req = &pkc->req->req_u.rsa_pub_req;
-		ret = copy_to_user(ckop->crk_param[3].crp_p, rsa_req->g, rsa_req->g_len);
+		copy_to_user(ckop->crk_param[3].crp_p, rsa_req->g, rsa_req->g_len);
 	}
 	break;
 	case CRK_MOD_EXP_CRT:
 	{
 		struct rsa_priv_frm3_req_s *rsa_req = &pkc->req->req_u.rsa_priv_f3;
-		ret = copy_to_user(ckop->crk_param[6].crp_p, rsa_req->f, rsa_req->f_len);
+		copy_to_user(ckop->crk_param[6].crp_p, rsa_req->f, rsa_req->f_len);
 	}
 	break;
 	case CRK_DSA_SIGN:
@@ -852,11 +724,11 @@ static int crypto_async_fetch_asym(struct cryptodev_pkc *pkc)
 		struct dsa_sign_req_s *dsa_req = &pkc->req->req_u.dsa_sign;
 
 		if (pkc->req->type == ECDSA_SIGN) {
-			ret = copy_to_user(ckop->crk_param[6].crp_p, dsa_req->c, dsa_req->d_len) ||
-			      copy_to_user(ckop->crk_param[7].crp_p, dsa_req->d, dsa_req->d_len);
+			copy_to_user(ckop->crk_param[6].crp_p, dsa_req->c, dsa_req->d_len);
+			copy_to_user(ckop->crk_param[7].crp_p, dsa_req->d, dsa_req->d_len);
 		} else {
-			ret = copy_to_user(ckop->crk_param[5].crp_p, dsa_req->c, dsa_req->d_len) ||
-			      copy_to_user(ckop->crk_param[6].crp_p, dsa_req->d, dsa_req->d_len);
+			copy_to_user(ckop->crk_param[5].crp_p, dsa_req->c, dsa_req->d_len);
+			copy_to_user(ckop->crk_param[6].crp_p, dsa_req->d, dsa_req->d_len);
 		}
 	}
 	break;
@@ -866,9 +738,9 @@ static int crypto_async_fetch_asym(struct cryptodev_pkc *pkc)
 	{
 		struct dh_key_req_s *dh_req = &pkc->req->req_u.dh_req;
 		if (pkc->req->type == ECDH_COMPUTE_KEY)
-			ret = copy_to_user(ckop->crk_param[4].crp_p, dh_req->z, dh_req->z_len);
+			copy_to_user(ckop->crk_param[4].crp_p, dh_req->z, dh_req->z_len);
 		else
-			ret = copy_to_user(ckop->crk_param[3].crp_p, dh_req->z, dh_req->z_len);
+			copy_to_user(ckop->crk_param[3].crp_p, dh_req->z, dh_req->z_len);
 	}
 	break;
 	case CRK_DSA_GENERATE_KEY:
@@ -877,17 +749,16 @@ static int crypto_async_fetch_asym(struct cryptodev_pkc *pkc)
 		struct keygen_req_s *key_req = &pkc->req->req_u.keygen;
 
 		if (pkc->req->type == ECC_KEYGEN) {
-			ret = copy_to_user(ckop->crk_param[4].crp_p, key_req->pub_key,
-					key_req->pub_key_len) ||
-			      copy_to_user(ckop->crk_param[5].crp_p, key_req->priv_key,
+			copy_to_user(ckop->crk_param[4].crp_p, key_req->pub_key,
+					key_req->pub_key_len);
+			copy_to_user(ckop->crk_param[5].crp_p, key_req->priv_key,
 					key_req->priv_key_len);
 		} else {
-			ret = copy_to_user(ckop->crk_param[3].crp_p, key_req->pub_key,
-					key_req->pub_key_len) ||
-			      copy_to_user(ckop->crk_param[4].crp_p, key_req->priv_key,
+			copy_to_user(ckop->crk_param[3].crp_p, key_req->pub_key,
+					key_req->pub_key_len);
+			copy_to_user(ckop->crk_param[4].crp_p, key_req->priv_key,
 					key_req->priv_key_len);
 		}
-	break;
 	}
 	default:
 		ret = -EINVAL;
@@ -1535,7 +1406,6 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	void __user *arg = (void __user *)arg_;
 	int __user *p = arg;
 	struct session_op sop;
-	struct kernel_hash_op khop;
 	struct kernel_crypt_op kcop;
 	struct kernel_crypt_auth_op kcaop;
 	struct crypt_priv *pcr = filp->private_data;
@@ -1685,36 +1555,6 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		}
 
 		return kcop_to_user(&kcop, fcr, arg);
-	case CIOCHASH:
-		if (unlikely(copy_from_user(&khop.hash_op, arg, sizeof(struct hash_op_data)))) {
-			pr_err("copy from user fault\n");
-			return -EFAULT;
-		}
-		khop.task = current;
-		khop.mm = current->mm;
-
-		/* get session */
-		ret = hash_create_session(&khop.hash_op);
-		if (unlikely(ret)) {
-			pr_err("can't get session\n");
-			return ret;
-		}
-
-		/* do hashing */
-		ret = hash_run(&khop);
-		if (unlikely(ret)) {
-			dwarning(1, "Error in hash run");
-			goto hash_err;
-		}
-
-		ret = copy_to_user(khop.hash_op.mac_result, khop.hash_output, khop.digestsize);
-		if (unlikely(ret)) {
-			dwarning(1, "Error in copy to user");
-		}
-
-	hash_err:
-		hash_destroy_session(khop.hash_op.ses);
-		return ret;
 	case CIOCAUTHCRYPT:
 		if (unlikely(ret = kcaop_from_user(&kcaop, fcr, arg))) {
 			dwarning(1, "Error copying from user");
@@ -1789,12 +1629,14 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 
 		/* Reflect the updated request to user-space */
 		if (cookie_list.cookie_available) {
-			ret = copy_to_user(arg, &cookie_list, sizeof(struct pkc_cookie_list_s));
+			copy_to_user(arg, &cookie_list, sizeof(struct pkc_cookie_list_s));
 		} else {
 			struct pkc_cookie_list_s *user_ck_list = (void *)arg;
-			ret = put_user(0, &(user_ck_list->cookie_available));
+			put_user(0, &(user_ck_list->cookie_available));
 		}
+		ret = cookie_list.cookie_available;
 	}
+
 	return ret;
 	default:
 		ddebug(2, "Default");
@@ -2313,11 +2155,8 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	struct fcrypt *fcr;
 	struct session_op sop;
 	struct compat_session_op compat_sop;
-	struct kernel_hash_op khop;
 	struct kernel_crypt_op kcop;
 	struct kernel_crypt_auth_op kcaop;
-	struct compat_hash_op_data compat_hash_op_data;
-
 	int ret;
 
 	if (unlikely(!pcr))
@@ -2438,56 +2277,6 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 
 		return compat_kcop_to_user(&kcop, fcr, arg);
 
-	case COMPAT_CIOCHASH:
-		/* get session */
-		if (unlikely(copy_from_user(&compat_hash_op_data, arg,
-					sizeof(struct compat_hash_op_data)))) {
-			pr_err("copy from user fault\n");
-			return -EFAULT;
-		}
-
-		khop.task = current;
-		khop.mm = current->mm;
-
-		khop.hash_op.mac_op = compat_hash_op_data.mac_op;
-		khop.hash_op.mackey = compat_ptr(compat_hash_op_data.mackey);
-		khop.hash_op.mackeylen = compat_hash_op_data.mackeylen;
-		khop.hash_op.flags = compat_hash_op_data.flags;
-		khop.hash_op.len = compat_hash_op_data.len;
-		khop.hash_op.src = compat_ptr(compat_hash_op_data.src);
-		khop.hash_op.mac_result =
-				compat_ptr(compat_hash_op_data.mac_result);
-
-		ret = hash_create_session(&khop.hash_op);
-		if (unlikely(ret)) {
-			pr_err("can't get session\n");
-			return ret;
-		}
-
-		/* do hashing */
-		ret = hash_run(&khop);
-		if (unlikely(ret)) {
-			dwarning(1, "Error in hash run");
-			goto hash_err;
-		}
-
-		ret = copy_to_user(khop.hash_op.mac_result, khop.hash_output,
-				   khop.digestsize);
-		if (unlikely(ret)) {
-			dwarning(1, "Error in copy to user");
-			goto hash_err;
-		}
-
-		ret = copy_to_user(arg, &compat_hash_op_data,
-			     sizeof(struct compat_hash_op_data));
-		if (unlikely(ret)) {
-			dwarning(1, "Error in copy to user");
-		}
-
-	hash_err:
-		hash_destroy_session(khop.hash_op.ses);
-		return ret;
-
 	case COMPAT_CIOCAUTHCRYPT:
 		if (unlikely(ret = compat_kcaop_from_user(&kcaop, fcr, arg))) {
 			dprintk(1, KERN_WARNING, "Error copying from user\n");
@@ -2565,10 +2354,9 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 		}
 
 		/* Reflect the updated request to user-space */
-		if (cookie_list.cookie_available) {
-			ret = copy_to_user(arg, &cookie_list,
-					sizeof(struct compat_pkc_cookie_list_s));
-		}
+		if (cookie_list.cookie_available)
+			copy_to_user(arg, &cookie_list,
+				     sizeof(struct compat_pkc_cookie_list_s));
 	}
 	return ret;
 	default:
@@ -2672,7 +2460,7 @@ static int __init init_cryptodev(void)
 
 	verbosity_sysctl_header = register_sysctl_table(verbosity_ctl_root);
 
-	pr_info(PFX "driver v1.8, fsl-sdk-v2.0, cyphre-blacktie-p1 loaded.\n");
+	pr_info(PFX "driver v1.7, fsl-sdk-v1.8, cyphre-blacktie-p1 loaded.\n");
 
 	return 0;
 }
