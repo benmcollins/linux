@@ -387,6 +387,11 @@ static inline int sk_mc_loop(struct sock *sk)
 	return 1;
 }
 
+static inline unsigned int ipv4_addr_hash(__be32 ip)
+{
+	return (__force unsigned int) ip;
+}
+
 extern bool ip_call_ra_chain(struct sk_buff *skb);
 
 /*

@@ -22,6 +22,9 @@ struct flowi_common {
 #define FLOWI_FLAG_ANYSRC		0x01
 #define FLOWI_FLAG_CAN_SLEEP		0x02
 #define FLOWI_FLAG_KNOWN_NH		0x04
+/* This was to 0x04 upstream. Changed here to 0x05. */
+#define FLOWI_FLAG_L3MDEV_SRC		0x05
+#define FLOWI_FLAG_SKIP_NH_OIF		0x08
 	__u32	flowic_secid;
 };
 

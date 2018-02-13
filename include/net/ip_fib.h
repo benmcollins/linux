@@ -293,6 +293,8 @@ extern int fib_sync_down_dev(struct net_device *dev, int force);
 extern int fib_sync_down_addr(struct net *net, __be32 local);
 extern int fib_sync_up(struct net_device *dev);
 extern void fib_select_multipath(struct fib_result *res);
+void fib_select_path(struct net *net, struct fib_result *res,
+		     struct flowi4 *fl4);
 
 /* Exported by fib_trie.c */
 extern void fib_trie_init(void);

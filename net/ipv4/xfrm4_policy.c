@@ -15,6 +15,7 @@
 #include <net/dst.h>
 #include <net/xfrm.h>
 #include <net/ip.h>
+#include <net/l3mdev.h>
 
 static struct xfrm_policy_afinfo xfrm4_policy_afinfo;
 
@@ -30,6 +31,8 @@ static struct dst_entry *__xfrm4_dst_lookup(struct net *net, struct flowi4 *fl4,
 	fl4->flowi4_tos = tos;
 	if (saddr)
 		fl4->saddr = saddr->a4;
+
+	fl4->flowi4_flags = FLOWI_FLAG_SKIP_NH_OIF;
 
 	rt = __ip_route_output_key(net, fl4);
 	if (!IS_ERR(rt))
@@ -107,7 +110,7 @@ _decode_session4(struct sk_buff *skb, struct flowi *fl, int reverse)
 	int oif = 0;
 
 	if (skb_dst(skb))
-		oif = skb_dst(skb)->dev->ifindex;
+		oif = l3mdev_fib_oif(skb_dst(skb)->dev);
 
 	memset(fl4, 0, sizeof(struct flowi4));
 	fl4->flowi4_mark = skb->mark;

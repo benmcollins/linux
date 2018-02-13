@@ -79,6 +79,7 @@
 #include <net/tcp.h>
 #include <net/sock.h>
 #include <net/ip_fib.h>
+#include <trace/events/fib.h>
 #include "fib_lookup.h"
 
 #define MAX_STAT_DEPTH 32
@@ -1374,8 +1375,11 @@ static int check_leaf(struct fib_table *tb, struct trie *t, struct leaf *l,
 
 				if (nh->nh_flags & RTNH_F_DEAD)
 					continue;
-				if (flp->flowi4_oif && flp->flowi4_oif != nh->nh_oif)
-					continue;
+				if (!(flp->flowi4_flags & FLOWI_FLAG_SKIP_NH_OIF)) {
+					if (flp->flowi4_oif &&
+					    flp->flowi4_oif != nh->nh_oif)
+						continue;
+				}
 
 #ifdef CONFIG_IP_FIB_TRIE_STATS
 				t->stats.semantic_match_passed++;

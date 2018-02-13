@@ -1186,6 +1186,9 @@ struct net_device {
 	/* Management operations */
 	const struct net_device_ops *netdev_ops;
 	const struct ethtool_ops *ethtool_ops;
+#ifdef CONFIG_NET_L3_MASTER_DEV
+	const struct l3mdev_ops	*l3mdev_ops;
+#endif
 
 	/* Hardware header description */
 	const struct header_ops *header_ops;
@@ -1421,6 +1424,16 @@ struct net_device {
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
 #define	NETDEV_ALIGN		32
+
+static inline bool netif_is_l3_master(const struct net_device *dev)
+{
+	return dev->priv_flags & IFF_L3MDEV_MASTER;
+}
+
+static inline bool netif_is_l3_slave(const struct net_device *dev)
+{
+	return dev->priv_flags & IFF_L3MDEV_SLAVE;
+}
 
 static inline
 int netdev_get_prio_tc_map(const struct net_device *dev, u32 prio)

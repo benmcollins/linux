@@ -80,17 +80,7 @@ static void tcp_metric_set_msecs(struct tcp_metrics_block *tm,
 static bool addr_same(const struct inetpeer_addr *a,
 		      const struct inetpeer_addr *b)
 {
-	const struct in6_addr *a6, *b6;
-
-	if (a->family != b->family)
-		return false;
-	if (a->family == AF_INET)
-		return a->addr.a4 == b->addr.a4;
-
-	a6 = (const struct in6_addr *) &a->addr.a6[0];
-	b6 = (const struct in6_addr *) &b->addr.a6[0];
-
-	return ipv6_addr_equal(a6, b6);
+	return inetpeer_addr_cmp(a, b) == 0;
 }
 
 struct tcpm_hash_bucket {
@@ -232,11 +222,11 @@ static struct tcp_metrics_block *__tcp_get_metrics_req(struct request_sock *req,
 	addr.family = req->rsk_ops->family;
 	switch (addr.family) {
 	case AF_INET:
-		addr.addr.a4 = inet_rsk(req)->rmt_addr;
-		hash = (__force unsigned int) addr.addr.a4;
+		inetpeer_set_addr_v4(&addr, inet_rsk(req)->rmt_addr);
+		hash = ipv4_addr_hash(inet_rsk(req)->rmt_addr);
 		break;
 	case AF_INET6:
-		*(struct in6_addr *)addr.addr.a6 = inet6_rsk(req)->rmt_addr;
+		inetpeer_set_addr_v6(&addr, &inet6_rsk(req)->rmt_addr);
 		hash = ipv6_addr_hash(&inet6_rsk(req)->rmt_addr);
 		break;
 	default:
@@ -266,12 +256,12 @@ static struct tcp_metrics_block *__tcp_get_metrics_tw(struct inet_timewait_sock 
 	addr.family = tw->tw_family;
 	switch (addr.family) {
 	case AF_INET:
-		addr.addr.a4 = tw->tw_daddr;
-		hash = (__force unsigned int) addr.addr.a4;
+		inetpeer_set_addr_v4(&addr, tw->tw_daddr);
+		hash = ipv4_addr_hash(tw->tw_daddr);
 		break;
 	case AF_INET6:
 		tw6 = inet6_twsk((struct sock *)tw);
-		*(struct in6_addr *)addr.addr.a6 = tw6->tw_v6_daddr;
+		inetpeer_set_addr_v6(&addr, &tw6->tw_v6_daddr);
 		hash = ipv6_addr_hash(&tw6->tw_v6_daddr);
 		break;
 	default:
@@ -301,11 +291,11 @@ static struct tcp_metrics_block *tcp_get_metrics(struct sock *sk,
 	addr.family = sk->sk_family;
 	switch (addr.family) {
 	case AF_INET:
-		addr.addr.a4 = inet_sk(sk)->inet_daddr;
-		hash = (__force unsigned int) addr.addr.a4;
+		inetpeer_set_addr_v4(&addr, inet_sk(sk)->inet_daddr);
+		hash = ipv4_addr_hash(inet_sk(sk)->inet_daddr);
 		break;
 	case AF_INET6:
-		*(struct in6_addr *)addr.addr.a6 = inet6_sk(sk)->daddr;
+		inetpeer_set_addr_v6(&addr, &inet6_sk(sk)->daddr);
 		hash = ipv6_addr_hash(&inet6_sk(sk)->daddr);
 		break;
 	default:
@@ -735,12 +725,12 @@ static int tcp_metrics_fill_info(struct sk_buff *msg,
 	switch (tm->tcpm_addr.family) {
 	case AF_INET:
 		if (nla_put_be32(msg, TCP_METRICS_ATTR_ADDR_IPV4,
-				tm->tcpm_addr.addr.a4) < 0)
+				tm->tcpm_addr.a4.addr) < 0)
 			goto nla_put_failure;
 		break;
 	case AF_INET6:
 		if (nla_put(msg, TCP_METRICS_ATTR_ADDR_IPV6, 16,
-			    tm->tcpm_addr.addr.a6) < 0)
+			    tm->tcpm_addr.addr6) < 0)
 			goto nla_put_failure;
 		break;
 	default:
@@ -871,8 +861,8 @@ static int parse_nl_addr(struct genl_info *info, struct inetpeer_addr *addr,
 	a = info->attrs[TCP_METRICS_ATTR_ADDR_IPV4];
 	if (a) {
 		addr->family = AF_INET;
-		addr->addr.a4 = nla_get_be32(a);
-		*hash = (__force unsigned int) addr->addr.a4;
+		addr->a4.addr = nla_get_be32(a);
+		*hash = (__force unsigned int) addr->a4.addr;
 		return 0;
 	}
 	a = info->attrs[TCP_METRICS_ATTR_ADDR_IPV6];
@@ -880,8 +870,8 @@ static int parse_nl_addr(struct genl_info *info, struct inetpeer_addr *addr,
 		if (nla_len(a) != sizeof(struct in6_addr))
 			return -EINVAL;
 		addr->family = AF_INET6;
-		memcpy(addr->addr.a6, nla_data(a), sizeof(addr->addr.a6));
-		*hash = ipv6_addr_hash((struct in6_addr *) addr->addr.a6);
+		memcpy(addr->addr6, nla_data(a), sizeof(addr->addr6));
+		*hash = ipv6_addr_hash((struct in6_addr *) addr->addr6);
 		return 0;
 	}
 	return optional ? 1 : -EAFNOSUPPORT;

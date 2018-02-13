@@ -609,16 +609,18 @@ static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
 		struct fib_result res;
 
 		if (nh->nh_flags & RTNH_F_ONLINK) {
+			unsigned int addr_type;
 
 			if (cfg->fc_scope >= RT_SCOPE_LINK)
-				return -EINVAL;
-			if (inet_addr_type(net, nh->nh_gw) != RTN_UNICAST)
 				return -EINVAL;
 			dev = __dev_get_by_index(net, nh->nh_oif);
 			if (!dev)
 				return -ENODEV;
 			if (!(dev->flags & IFF_UP))
 				return -ENETDOWN;
+			addr_type = inet_addr_type_dev_table(net, dev, nh->nh_gw);
+			if (addr_type != RTN_UNICAST)
+				return -EINVAL;
 			nh->nh_dev = dev;
 			dev_hold(dev);
 			nh->nh_scope = RT_SCOPE_LINK;
@@ -626,6 +628,7 @@ static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
 		}
 		rcu_read_lock();
 		{
+			struct fib_table *tbl = NULL;
 			struct flowi4 fl4 = {
 				.daddr = nh->nh_gw,
 				.flowi4_scope = cfg->fc_scope + 1,
@@ -635,7 +638,18 @@ static int fib_check_nh(struct fib_config *cfg, struct fib_info *fi,
 			/* It is not necessary, but requires a bit of thinking */
 			if (fl4.flowi4_scope < RT_SCOPE_LINK)
 				fl4.flowi4_scope = RT_SCOPE_LINK;
-			err = fib_lookup(net, &fl4, &res);
+
+			if (cfg->fc_table)
+				tbl = fib_get_table(net, cfg->fc_table);
+
+			if (tbl) {
+				err = fib_table_lookup(tbl, &fl4, &res,
+					               FIB_LOOKUP_NOREF);
+				if (err)
+					err = -ENODEV;
+			} else {
+				err = fib_lookup(net, &fl4, &res);
+			}
 			if (err) {
 				rcu_read_unlock();
 				return err;
@@ -759,6 +773,30 @@ static void fib_info_hash_move(struct hlist_head *new_info_hash,
 	bytes = old_size * sizeof(struct hlist_head *);
 	fib_info_hash_free(old_info_hash, bytes);
 	fib_info_hash_free(old_laddrhash, bytes);
+}
+
+static bool fib_valid_prefsrc(struct fib_config *cfg, __be32 fib_prefsrc)
+{
+	if (cfg->fc_type != RTN_LOCAL || !cfg->fc_dst ||
+	    fib_prefsrc != cfg->fc_dst) {
+		u32 tb_id = cfg->fc_table;
+		int rc;
+
+		if (tb_id == RT_TABLE_MAIN)
+			tb_id = RT_TABLE_LOCAL;
+
+		rc = inet_addr_type_table(cfg->fc_nlinfo.nl_net,
+					  fib_prefsrc, tb_id);
+
+		if (rc != RTN_LOCAL && tb_id != RT_TABLE_LOCAL) {
+			rc = inet_addr_type_table(cfg->fc_nlinfo.nl_net,
+						  fib_prefsrc, RT_TABLE_LOCAL);
+		}
+
+		if (rc != RTN_LOCAL)
+			return false;
+	}
+	return true;
 }
 
 __be32 fib_info_update_nh_saddr(struct net *net, struct fib_nh *nh)
@@ -936,12 +974,8 @@ struct fib_info *fib_create_info(struct fib_config *cfg)
 		} endfor_nexthops(fi)
 	}
 
-	if (fi->fib_prefsrc) {
-		if (cfg->fc_type != RTN_LOCAL || !cfg->fc_dst ||
-		    fi->fib_prefsrc != cfg->fc_dst)
-			if (inet_addr_type(net, fi->fib_prefsrc) != RTN_LOCAL)
-				goto err_inval;
-	}
+	if (fi->fib_prefsrc && !fib_valid_prefsrc(cfg, fi->fib_prefsrc))
+		goto err_inval;
 
 	change_nexthops(fi) {
 		fib_info_update_nh_saddr(net, nexthop_nh);
@@ -1330,3 +1364,21 @@ void fib_select_multipath(struct fib_result *res)
 	spin_unlock_bh(&fib_multipath_lock);
 }
 #endif
+
+void fib_select_path(struct net *net, struct fib_result *res,
+		     struct flowi4 *fl4)
+{
+#ifdef CONFIG_IP_ROUTE_MULTIPATH
+	if (res->fi->fib_nhs > 1 && fl4->flowi4_oif == 0)
+		fib_select_multipath(res);
+	else
+#endif
+	if (!res->prefixlen &&
+	    res->table->tb_num_default > 1 &&
+	    res->type == RTN_UNICAST && !fl4->flowi4_oif)
+		fib_select_default(res);
+
+	if (!fl4->saddr)
+		fl4->saddr = FIB_RES_PREFSRC(net, *res);
+}
+EXPORT_SYMBOL_GPL(fib_select_path);
