@@ -706,11 +706,7 @@ static struct rtnl_link_ops vrf_link_ops __read_mostly = {
 static int vrf_device_event(struct notifier_block *unused,
 			    unsigned long event, void *ptr)
 {
-#if 0 /* Not in RHEL */
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
-#else
-	struct net_device *dev = ptr;
-#endif
 
 	/* only care about unregister events to drop slave references */
 	if (event == NETDEV_UNREGISTER) {
@@ -754,6 +750,7 @@ static int __init vrf_init_module(void)
 	return 0;
 
 error:
+	dst_entries_destroy(&vrf_dst_ops);
 	unregister_netdevice_notifier(&vrf_notifier_block);
 	kmem_cache_destroy(vrf_dst_ops.kmem_cachep);
 	return rc;
@@ -762,9 +759,9 @@ error:
 static void __exit vrf_cleanup_module(void)
 {
 	rtnl_link_unregister(&vrf_link_ops);
+	dst_entries_destroy(&vrf_dst_ops);
 	unregister_netdevice_notifier(&vrf_notifier_block);
 	kmem_cache_destroy(vrf_dst_ops.kmem_cachep);
-	dst_entries_destroy(&vrf_dst_ops);
 }
 
 module_init(vrf_init_module);
