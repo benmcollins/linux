@@ -378,9 +378,7 @@ struct prf_param {
 /*prf param max limit */
 #define PRF_LABEL_MAX		16
 #define PRF_MS_LEN		48
-#define PRF_PMS_MAX		128 /* to support more than 128 pms
-					need to implement scatter/gather imp.
-					in caam driver */
+#define PRF_PMS_MAX		512
 /* prf end here */
 
 /* features to be queried with CIOCASYMFEAT ioctl

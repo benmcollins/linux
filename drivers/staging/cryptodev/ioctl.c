@@ -1153,6 +1153,10 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	int buf_size;
 	uint8_t *buf;
 
+	if ((in_ms_param->pre_master_secret.len > PRF_PMS_MAX) ||
+		(in_ms_param->label.len > PRF_LABEL_MAX))
+		return -EINVAL;
+
 	buf_size = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
 			+ gen_ms->server_rand.len +
 			gen_ms->client_rand.len +
@@ -1160,9 +1164,6 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	buf = kmalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
-	if ((in_ms_param->pre_master_secret.len > PRF_PMS_MAX) ||
-		(in_ms_param->label.len > PRF_LABEL_MAX))
-		return -EINVAL;
 
 	gen_ms->pre_master_secret.len = in_ms_param->pre_master_secret.len;
 	gen_ms->label.len = in_ms_param->label.len;
@@ -1187,6 +1188,7 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
+
 	gen_ms->pre_master_secret.black_key =
 		in_ms_param->pre_master_secret.black_key;
 	if (unlikely(copy_from_user(gen_ms->pre_master_secret.param,
@@ -1196,6 +1198,7 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
+
 	if (unlikely(copy_from_user(gen_ms->server_rand.param,
 		in_ms_param->server_rand.param,
 		gen_ms->server_rand.len))) {
@@ -1203,6 +1206,7 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
+
 	if (unlikely(copy_from_user(gen_ms->client_rand.param,
 		in_ms_param->client_rand.param,
 		gen_ms->client_rand.len))) {
@@ -1210,6 +1214,7 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
+
 	gen_ms->out_master_secret.black_key =
 			in_ms_param->out_master_secret.black_key;
 	return 0;
