@@ -949,13 +949,16 @@ static void prf_req_free(struct prf_req_s *req)
 {
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
-		kfree(req->req_u.gen_ms.label.param);
+		if (req->req_u.gen_ms.label.param)
+			kfree(req->req_u.gen_ms.label.param);
 		break;
 	case GEN_SESSION_KEYS:
-		kfree(req->req_u.gen_session_key.label.param);
+		if (req->req_u.gen_session_key.label.param)
+			kfree(req->req_u.gen_session_key.label.param);
 		break;
 	case GEN_FINISH_RAND:
-		kfree(req->req_u.gen_finish_rand.label.param);
+		if (req->req_u.gen_finish_rand.label.param)
+			kfree(req->req_u.gen_finish_rand.label.param);
 		break;
 	default:
 		pr_err(PFX"cryptodev memory leak !!!");
@@ -983,7 +986,7 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (!in->out_client_mac_secret.black_key)
 		buf_size = buf_size + (2 * PRF_ENC_HMAC_SECRET_LEN);
 
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
 
@@ -1040,25 +1043,21 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_ses_key->label.param, in->label.param,
 					gen_ses_key->label.len))) {
 		pr_err(PFX"copy from user failed");
-		kfree(buf);
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ses_key->master_secret.param,
 		in->master_secret.param, gen_ses_key->master_secret.len))) {
 		pr_err(PFX"copy from user failed");
-		kfree(buf);
 		return -EFAULT;
 	}
 
 	if (unlikely(copy_from_user(gen_ses_key->server_rand.param,
 		in->server_rand.param, gen_ses_key->server_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ses_key->client_rand.param,
 		in->client_rand.param, gen_ses_key->client_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1091,7 +1090,7 @@ static int copy_session_req_to_ms_req(struct prf_req_s *ms_req,
 			+ 128 /* generate master secret can return 128 byte
 				on max */
 			);
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
 
@@ -1161,7 +1160,8 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 			+ gen_ms->server_rand.len +
 			gen_ms->client_rand.len +
 			gen_ms->out_master_secret.len);
-	buf = kmalloc(buf_size, GFP_DMA);
+
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
 
@@ -1184,7 +1184,6 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_ms->label.param,
 		in_ms_param->label.param,
 		gen_ms->label.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1194,7 +1193,6 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_ms->pre_master_secret.param,
 		in_ms_param->pre_master_secret.param,
 		gen_ms->pre_master_secret.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1202,7 +1200,6 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_ms->server_rand.param,
 		in_ms_param->server_rand.param,
 		gen_ms->server_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1210,7 +1207,6 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_ms->client_rand.param,
 		in_ms_param->client_rand.param,
 		gen_ms->client_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1227,16 +1223,17 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 	int buf_size;
 	uint8_t *buf;
 
+	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
+		(in_finish->label.len > PRF_LABEL_MAX))
+		return -EINVAL;
+
 	buf_size = (in_finish->label.len + in_finish->master_secret.len
 			+ gen_finish->seed1.len +
 			gen_finish->seed2.len +
 			gen_finish->out_data.len);
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
-	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
-		(in_finish->label.len > PRF_LABEL_MAX))
-		return -EINVAL;
 
 	gen_finish->master_secret.len = in_finish->master_secret.len;
 	gen_finish->label.len = in_finish->label.len;
@@ -1257,7 +1254,6 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_finish->label.param,
 		in_finish->label.param,
 		gen_finish->label.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1266,21 +1262,18 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 	if (unlikely(copy_from_user(gen_finish->master_secret.param,
 		in_finish->master_secret.param,
 		gen_finish->master_secret.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_finish->seed1.param,
 		in_finish->seed1.param,
 		gen_finish->seed1.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_finish->seed2.param,
 		in_finish->seed2.param,
 		gen_finish->seed2.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1289,21 +1282,25 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 
 static struct prf_req_s *get_and_validate_prf_param(struct prf_param *prfiop)
 {
-	struct prf_req_s *req = kmalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+	struct prf_req_s *req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+
+	if (!req)
+		return NULL;
 
 	req->prf_op = prfiop->prf_op;
 	req->tls_version = prfiop->tls_version;
+
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
 		if (get_gen_ms_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(req);
 			pr_err(PFX"get_gen_ms_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_SESSION_KEYS:
 		if (get_gen_session_key_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(req);
 			pr_err(PFX"get_gen_session_key_param failed!");
 			return NULL;
 		}
@@ -1317,8 +1314,9 @@ static struct prf_req_s *get_and_validate_prf_param(struct prf_param *prfiop)
 		break;
 	default:
 		kfree(req);
-		return NULL;
+		req = NULL;
 	}
+
 	return req;
 }
 
@@ -1489,50 +1487,56 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		}
 
 		if ((prfiop.prf_op == GEN_SESSION_KEYS) &&
-		(!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)
-		) {
-			struct prf_req_s *ms_req;
-			ms_req = kmalloc(sizeof(struct prf_req_s), GFP_KERNEL);
-			ret = prf_op(dev, req);
-			if (ret)
-				pr_err(PFX "prf operation failed!");
-			else{
-				copy_session_req_to_ms_req(ms_req, req);
-				ret = prf_op(dev, ms_req);
+		    (!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)) {
+			struct prf_req_s *ms_req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+
+			if (!ms_req) {
+				ret = -ENOMEM;
+			} else {
+				ret = prf_op(dev, req);
+
+				if (ret) {
+					pr_err(PFX "prf operation failed!");
+				} else {
+					copy_session_req_to_ms_req(ms_req, req);
+					ret = prf_op(dev, ms_req);
+				}
+				if (ret) {
+					pr_err(PFX "prf operation failed!");
+				} else {
+					prepare_session_req(req, ms_req);
+					ret = prf_cop_to_user(&prfiop, req);
+					if (unlikely(ret)) {
+						pr_err(PFX "copy to user failed");
+						ret = -EFAULT;
+					}
+				}
+
+				prf_req_free(ms_req);
 			}
-			if (ret)
+		} else {
+			ret = prf_op(dev, req);
+
+			if (ret) {
 				pr_err(PFX "prf operation failed!");
-			else {
-				prepare_session_req(req, ms_req);
+			} else {
 				ret = prf_cop_to_user(&prfiop, req);
+
 				if (unlikely(ret)) {
 					pr_err(PFX "copy to user failed");
 					ret = -EFAULT;
 				}
 			}
-
-			prf_req_free(ms_req);
-			prf_req_free(req);
-		} else {
-			ret = prf_op(dev, req);
-			if (ret)
-				pr_err(PFX "prf operation failed!");
-			else
-				ret = prf_cop_to_user(&prfiop, req);
-			if (unlikely(ret)) {
-				pr_err(PFX "copy to user failed");
-				ret = -EFAULT;
-			}
-
-			prf_req_free(req);
 		}
+
+		prf_req_free(req);
 		caam_prf_ctx_del(dev);
 		return ret;
 	}
 	case CIOCKEY:
 	{
 		struct cryptodev_pkc *pkc =
-			kmalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
 
 		if (!pkc)
 			return -ENOMEM;
@@ -1588,7 +1592,7 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	case CIOCASYMASYNCRYPT:
 	{
 		struct cryptodev_pkc *pkc =
-			kmalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
 		ret = kop_from_user(&pkc->kop, arg);
 
 		if (unlikely(ret))
@@ -1800,7 +1804,7 @@ int compat_get_gen_ms_param(struct prf_req_s *req,
 			+ gen_ms->server_rand.len +
 			gen_ms->client_rand.len +
 			gen_ms->out_master_secret.len);
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
 	gen_ms->pre_master_secret.len = in_ms_param->pre_master_secret.len;
@@ -1822,7 +1826,6 @@ int compat_get_gen_ms_param(struct prf_req_s *req,
 	if (unlikely(copy_from_user(gen_ms->label.param,
 		compat_ptr(in_ms_param->label.param),
 		gen_ms->label.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1831,21 +1834,18 @@ int compat_get_gen_ms_param(struct prf_req_s *req,
 	if (unlikely(copy_from_user(gen_ms->pre_master_secret.param,
 		compat_ptr(in_ms_param->pre_master_secret.param),
 		gen_ms->pre_master_secret.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ms->server_rand.param,
 		compat_ptr(in_ms_param->server_rand.param),
 		gen_ms->server_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ms->client_rand.param,
 		compat_ptr(in_ms_param->client_rand.param),
 		gen_ms->client_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1869,7 +1869,7 @@ int compat_get_gen_session_key_param(struct prf_req_s *req,
 			+ in->out_server_write_key.len
 			+ in->out_client_write_iv.len
 			+ in->out_server_write_iv.len);
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
 
@@ -1916,28 +1916,24 @@ int compat_get_gen_session_key_param(struct prf_req_s *req,
 					compat_ptr(in->label.param),
 					gen_ses_key->label.len))) {
 		pr_err(PFX"copy from user failed");
-		kfree(buf);
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ses_key->master_secret.param,
 		compat_ptr(in->master_secret.param),
 		gen_ses_key->master_secret.len))) {
 		pr_err(PFX"copy from user failed");
-		kfree(buf);
 		return -EFAULT;
 	}
 
 	if (unlikely(copy_from_user(gen_ses_key->server_rand.param,
 		compat_ptr(in->server_rand.param),
 		gen_ses_key->server_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_ses_key->client_rand.param,
 		compat_ptr(in->client_rand.param),
 		gen_ses_key->client_rand.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -1964,16 +1960,17 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	int buf_size;
 	uint8_t *buf;
 
+	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
+		(in_finish->label.len > PRF_LABEL_MAX))
+		return -EINVAL;
+
 	buf_size = (in_finish->label.len + in_finish->master_secret.len
 			+ gen_finish->seed1.len +
 			gen_finish->seed2.len +
 			gen_finish->out_data.len);
-	buf = kmalloc(buf_size, GFP_DMA);
+	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
-	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
-		(in_finish->label.len > PRF_LABEL_MAX))
-		return -EINVAL;
 
 	gen_finish->master_secret.len = in_finish->master_secret.len;
 	gen_finish->label.len = in_finish->label.len;
@@ -1994,7 +1991,6 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	if (unlikely(copy_from_user(gen_finish->label.param,
 		compat_ptr(in_finish->label.param),
 		gen_finish->label.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -2003,21 +1999,18 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	if (unlikely(copy_from_user(gen_finish->master_secret.param,
 		compat_ptr(in_finish->master_secret.param),
 		gen_finish->master_secret.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_finish->seed1.param,
 		compat_ptr(in_finish->seed1.param),
 		gen_finish->seed1.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
 	if (unlikely(copy_from_user(gen_finish->seed2.param,
 		compat_ptr(in_finish->seed2.param),
 		gen_finish->seed2.len))) {
-		kfree(buf);
 		pr_err(PFX"copy from user failed");
 		return -EFAULT;
 	}
@@ -2027,36 +2020,41 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 static struct prf_req_s *compat_get_and_validate_prf_param(
 					struct compat_prf_param *prfiop)
 {
-	struct prf_req_s *req = kmalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+	struct prf_req_s *req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+
+	if (!req)
+		return NULL;
 
 	req->prf_op = prfiop->prf_op;
 	req->tls_version = prfiop->tls_version;
+
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
 		if (compat_get_gen_ms_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(req);
 			pr_err(PFX"compat_get_gen_ms_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_SESSION_KEYS:
 		if (compat_get_gen_session_key_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(req);
 			pr_err(PFX"compat_get_gen_session_key_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_FINISH_RAND:
 		if (compat_get_gen_finish_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(req);
 			pr_err(PFX"get_gen_finish_param failed!");
 			return NULL;
 		}
 		break;
 	default:
 		kfree(req);
-		return NULL;
+		req = NULL;
 	}
+
 	return req;
 }
 
@@ -2196,7 +2194,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 		(!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)
 		) {
 			struct prf_req_s *ms_req;
-			ms_req = kmalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+			ms_req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
 			ret = prf_op(dev, req);
 			if (ret)
 				pr_err(PFX "prf operation failed!");
