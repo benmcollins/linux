@@ -349,7 +349,6 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	ses_new->sg = kzalloc(ses_new->array_size *
 			sizeof(struct scatterlist), GFP_KERNEL);
 	if (ses_new->sg == NULL || ses_new->pages == NULL) {
-		ddebug(0, "Memory error");
 		ret = -ENOMEM;
 		goto error_hash;
 	}
@@ -945,8 +944,13 @@ static int get_session_info(struct fcrypt *fcr, struct session_info_op *siop)
 	return 0;
 }
 
-static void prf_req_free(struct prf_req_s *req)
+static void prf_req_free(struct prf_req_s **__req)
 {
+	struct prf_req_s *req = *__req;
+
+	if (req == NULL)
+		return;
+
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
 		if (req->req_u.gen_ms.label.param)
@@ -965,7 +969,12 @@ static void prf_req_free(struct prf_req_s *req)
 		break;
 	}
 
+	/* Poison to make sure we don't re-use */
+	memset(req, 0x43, sizeof(struct prf_req_s));
+
 	kfree(req);
+	*__req = NULL;
+
 	return;
 }
 
@@ -989,7 +998,6 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 	buf = kzalloc(buf_size, GFP_DMA);
 	if (!buf)
 		return -ENOMEM;
-
 
 	gen_ses_key->cipher = in->cipher;
 	gen_ses_key->label.len = in->label.len;
@@ -1293,14 +1301,14 @@ static struct prf_req_s *get_and_validate_prf_param(struct prf_param *prfiop)
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
 		if (get_gen_ms_param(req, prfiop)) {
-			prf_req_free(req);
+			prf_req_free(&req);
 			pr_err(PFX"get_gen_ms_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_SESSION_KEYS:
 		if (get_gen_session_key_param(req, prfiop)) {
-			prf_req_free(req);
+			prf_req_free(&req);
 			pr_err(PFX"get_gen_session_key_param failed!");
 			return NULL;
 		}
@@ -1490,47 +1498,39 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		    (!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)) {
 			struct prf_req_s *ms_req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
 
-			if (!ms_req) {
+			if (!ms_req)
 				ret = -ENOMEM;
-			} else {
+
+			if (!ret)
 				ret = prf_op(dev, req);
 
-				if (ret) {
-					pr_err(PFX "prf operation failed!");
-				} else {
-					copy_session_req_to_ms_req(ms_req, req);
-					ret = prf_op(dev, ms_req);
-				}
-				if (ret) {
-					pr_err(PFX "prf operation failed!");
-				} else {
-					prepare_session_req(req, ms_req);
-					ret = prf_cop_to_user(&prfiop, req);
-					if (unlikely(ret)) {
-						pr_err(PFX "copy to user failed");
-						ret = -EFAULT;
-					}
-				}
-
-				prf_req_free(ms_req);
+			if (!ret) {
+				copy_session_req_to_ms_req(ms_req, req);
+				ret = prf_op(dev, ms_req);
 			}
+
+			if (!ret) {
+				prepare_session_req(req, ms_req);
+				ret = prf_cop_to_user(&prfiop, req);
+				if (unlikely(ret))
+					ret = -EFAULT;
+			}
+
+			prf_req_free(&ms_req);
 		} else {
 			ret = prf_op(dev, req);
 
-			if (ret) {
-				pr_err(PFX "prf operation failed!");
-			} else {
+			if (!ret) {
 				ret = prf_cop_to_user(&prfiop, req);
 
-				if (unlikely(ret)) {
-					pr_err(PFX "copy to user failed");
+				if (unlikely(ret))
 					ret = -EFAULT;
-				}
 			}
 		}
 
-		prf_req_free(req);
+		prf_req_free(&req);
 		caam_prf_ctx_del(dev);
+
 		return ret;
 	}
 	case CIOCKEY:
@@ -1593,6 +1593,10 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	{
 		struct cryptodev_pkc *pkc =
 			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+
+		if (!pkc)
+			return -ENOMEM;
+
 		ret = kop_from_user(&pkc->kop, arg);
 
 		if (unlikely(ret))
@@ -1873,7 +1877,6 @@ int compat_get_gen_session_key_param(struct prf_req_s *req,
 	if (!buf)
 		return -ENOMEM;
 
-
 	gen_ses_key->cipher = in->cipher;
 	gen_ses_key->label.len = in->label.len;
 	gen_ses_key->master_secret.len = in->master_secret.len;
@@ -2031,21 +2034,21 @@ static struct prf_req_s *compat_get_and_validate_prf_param(
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
 		if (compat_get_gen_ms_param(req, prfiop)) {
-			prf_req_free(req);
+			prf_req_free(&req);
 			pr_err(PFX"compat_get_gen_ms_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_SESSION_KEYS:
 		if (compat_get_gen_session_key_param(req, prfiop)) {
-			prf_req_free(req);
+			prf_req_free(&req);
 			pr_err(PFX"compat_get_gen_session_key_param failed!");
 			return NULL;
 		}
 		break;
 	case GEN_FINISH_RAND:
 		if (compat_get_gen_finish_param(req, prfiop)) {
-			prf_req_free(req);
+			prf_req_free(&req);
 			pr_err(PFX"get_gen_finish_param failed!");
 			return NULL;
 		}
@@ -2191,43 +2194,39 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 		}
 
 		if ((prfiop.prf_op == GEN_SESSION_KEYS) &&
-		(!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)
-		) {
-			struct prf_req_s *ms_req;
-			ms_req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
-			ret = prf_op(dev, req);
-			if (ret)
-				pr_err(PFX "prf operation failed!");
-			else{
+		    (!prfiop.req_u.gen_session_key.out_client_mac_secret.black_key)) {
+			struct prf_req_s *ms_req = kzalloc(sizeof(struct prf_req_s), GFP_KERNEL);
+
+			if (!ms_req)
+				ret = -ENOMEM;
+
+			if (!ret)
+				ret = prf_op(dev, req);
+
+			if (!ret) {
 				copy_session_req_to_ms_req(ms_req, req);
 				ret = prf_op(dev, ms_req);
 			}
-			if (ret)
-				pr_err(PFX "prf operation failed!");
-			else {
+
+			if (!ret) {
 				prepare_session_req(req, ms_req);
 				ret = compat_prf_cop_to_user(&prfiop, req);
-				if (unlikely(ret)) {
-					pr_err(PFX "copy to user failed");
+				if (unlikely(ret))
 					ret = -EFAULT;
-				}
 			}
 
-			prf_req_free(ms_req);
-			prf_req_free(req);
+			prf_req_free(&ms_req);
+			prf_req_free(&req);
 		} else {
 			ret = prf_op(dev, req);
-			if (ret)
-				pr_err(PFX "prf operation failed!");
-			else
+			if (!ret)
 				ret = compat_prf_cop_to_user(&prfiop, req);
-			if (unlikely(ret)) {
-				pr_err(PFX "copy to user failed");
+			if (unlikely(ret))
 				ret = -EFAULT;
-			}
 
-			prf_req_free(req);
+			prf_req_free(&req);
 		}
+
 		caam_prf_ctx_del(dev);
 		return ret;
 
@@ -2311,6 +2310,9 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	{
 		struct cryptodev_pkc *pkc =
 			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+
+		if (!pkc)
+			return -ENOMEM;
 
 		ret = compat_kop_from_user(&pkc->kop, arg);
 		if (unlikely(ret))
