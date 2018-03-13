@@ -71,6 +71,8 @@ int cryptodev_verbosity;
 module_param(cryptodev_verbosity, int, 0644);
 MODULE_PARM_DESC(cryptodev_verbosity, "0: normal, 1: verbose, 2: debug");
 
+#define GFP_DMA_BUFFER		1024
+
 /* ====== CryptoAPI ====== */
 struct todo_list_item {
 	struct list_head __hook;
@@ -102,6 +104,7 @@ void cryptodev_complete_asym(struct crypto_async_request *req, int err)
 	struct cryptodev_result *res = &pkc->result;
 
 	crypto_free_pkc(pkc->s);
+	pkc->s = NULL;
 	res->err = err;
 	if (pkc->type == SYNCHRONOUS) {
 		complete(&res->completion);
@@ -953,26 +956,16 @@ static void prf_req_free(struct prf_req_s **__req)
 
 	switch (req->prf_op) {
 	case GEN_MASTER_SECRET:
-		if (req->req_u.gen_ms.label.param)
-			kfree(req->req_u.gen_ms.label.param);
-		break;
 	case GEN_SESSION_KEYS:
-		if (req->req_u.gen_session_key.label.param)
-			kfree(req->req_u.gen_session_key.label.param);
-		break;
 	case GEN_FINISH_RAND:
-		if (req->req_u.gen_finish_rand.label.param)
-			kfree(req->req_u.gen_finish_rand.label.param);
+		kfree(req->dma_buf);
 		break;
 	default:
 		pr_err(PFX"cryptodev memory leak !!!");
 		break;
 	}
 
-	/* Poison to make sure we don't re-use */
-	memset(req, 0x43, sizeof(struct prf_req_s));
-
-	kfree(req);
+	kzfree(req);
 	*__req = NULL;
 
 	return;
@@ -982,21 +975,21 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 {
 	struct gen_session_keys *in = &prfiop->req_u.gen_session_key;
 	struct gen_session_keys_s *gen_ses_key = &req->req_u.gen_session_key;
-	int buf_size;
-	uint8_t *buf;
-	buf_size = (in->label.len + in->master_secret.len
+
+	req->dma_len = (in->label.len + in->master_secret.len
 			+ in->server_rand.len
 			+ in->client_rand.len + in->out_client_mac_secret.len
 			+ in->out_server_mac_secret.len
 			+ in->out_client_write_key.len
 			+ in->out_server_write_key.len
 			+ in->out_client_write_iv.len
-			+ in->out_server_write_iv.len);
-	if (!in->out_client_mac_secret.black_key)
-		buf_size = buf_size + (2 * PRF_ENC_HMAC_SECRET_LEN);
+			+ in->out_server_write_iv.len + GFP_DMA_BUFFER);
 
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+	if (!in->out_client_mac_secret.black_key)
+		req->dma_len += (2 * PRF_ENC_HMAC_SECRET_LEN);
+
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	gen_ses_key->cipher = in->cipher;
@@ -1021,7 +1014,7 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 	gen_ses_key->out_client_write_iv.len = in->out_client_write_iv.len;
 	gen_ses_key->out_server_write_iv.len = in->out_server_write_iv.len;
 
-	gen_ses_key->label.param = buf;
+	gen_ses_key->label.param = req->dma_buf;
 	gen_ses_key->client_rand.param = gen_ses_key->label.param
 					+ gen_ses_key->label.len;
 	gen_ses_key->server_rand.param = gen_ses_key->client_rand.param
@@ -1088,18 +1081,14 @@ static int copy_session_req_to_ms_req(struct prf_req_s *ms_req,
 {
 	struct gen_session_keys_s *in = &req->req_u.gen_session_key;
 	struct gen_master_secret_s *out = &ms_req->req_u.gen_ms;
-	int buf_size;
-	uint8_t *buf;
 
 	ms_req->prf_op = GEN_MASTER_SECRET;
 	ms_req->tls_version = req->tls_version;
-	buf_size = (in->label.len + in->master_secret.len + in->server_rand.len
+	req->dma_len = (in->label.len + in->master_secret.len + in->server_rand.len
 			+ in->client_rand.len + in->out_client_mac_secret.len
-			+ 128 /* generate master secret can return 128 byte
-				on max */
-			);
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+			+ 128);
+	req->dma_buf = kzalloc(req->dma_len, GFP_KERNEL);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	out->pre_master_secret.len = in->master_secret.len;
@@ -1108,7 +1097,7 @@ static int copy_session_req_to_ms_req(struct prf_req_s *ms_req,
 	out->client_rand.len = in->client_rand.len;
 	out->out_master_secret.len = 128;
 
-	out->label.param = buf;
+	out->label.param = req->dma_buf;
 	out->pre_master_secret.param = out->label.param + out->label.len;
 	out->server_rand.param = out->pre_master_secret.param +
 						out->pre_master_secret.len;
@@ -1157,20 +1146,18 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 {
 	struct gen_master_secret *in_ms_param = &prfiop->req_u.gen_ms;
 	struct gen_master_secret_s *gen_ms = &req->req_u.gen_ms;
-	int buf_size;
-	uint8_t *buf;
 
 	if ((in_ms_param->pre_master_secret.len > PRF_PMS_MAX) ||
 		(in_ms_param->label.len > PRF_LABEL_MAX))
 		return -EINVAL;
 
-	buf_size = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
+	req->dma_len = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
 			+ gen_ms->server_rand.len +
 			gen_ms->client_rand.len +
-			gen_ms->out_master_secret.len);
+			gen_ms->out_master_secret.len + GFP_DMA_BUFFER);
 
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	gen_ms->pre_master_secret.len = in_ms_param->pre_master_secret.len;
@@ -1179,7 +1166,7 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 	gen_ms->client_rand.len = in_ms_param->client_rand.len;
 	gen_ms->out_master_secret.len = in_ms_param->out_master_secret.len;
 
-	gen_ms->label.param = buf;
+	gen_ms->label.param = req->dma_buf;
 	gen_ms->pre_master_secret.param = gen_ms->label.param +
 						gen_ms->label.len;
 	gen_ms->server_rand.param = gen_ms->pre_master_secret.param +
@@ -1228,19 +1215,17 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 {
 	struct gen_finish_random *in_finish = &prfiop->req_u.gen_finish_rand;
 	struct gen_finish_random_s *gen_finish = &req->req_u.gen_finish_rand;
-	int buf_size;
-	uint8_t *buf;
 
 	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
 		(in_finish->label.len > PRF_LABEL_MAX))
 		return -EINVAL;
 
-	buf_size = (in_finish->label.len + in_finish->master_secret.len
+	req->dma_len = (in_finish->label.len + in_finish->master_secret.len
 			+ gen_finish->seed1.len +
 			gen_finish->seed2.len +
-			gen_finish->out_data.len);
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+			gen_finish->out_data.len + GFP_DMA_BUFFER);
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	gen_finish->master_secret.len = in_finish->master_secret.len;
@@ -1249,7 +1234,7 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 	gen_finish->seed2.len = in_finish->seed2.len;
 	gen_finish->out_data.len = in_finish->out_data.len;
 
-	gen_finish->label.param = buf;
+	gen_finish->label.param = req->dma_buf;
 	gen_finish->master_secret.param = gen_finish->label.param +
 						gen_finish->label.len;
 	gen_finish->seed1.param = gen_finish->master_secret.param +
@@ -1801,23 +1786,23 @@ int compat_get_gen_ms_param(struct prf_req_s *req,
 {
 	struct compat_gen_master_secret *in_ms_param = &prfiop->req_u.gen_ms;
 	struct gen_master_secret_s *gen_ms = &req->req_u.gen_ms;
-	int buf_size;
-	uint8_t *buf;
 
-	buf_size = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
+	req->dma_len = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
 			+ gen_ms->server_rand.len +
 			gen_ms->client_rand.len +
-			gen_ms->out_master_secret.len);
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+			gen_ms->out_master_secret.len + GFP_DMA_BUFFER);
+
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
+
 	gen_ms->pre_master_secret.len = in_ms_param->pre_master_secret.len;
 	gen_ms->label.len = in_ms_param->label.len;
 	gen_ms->server_rand.len = in_ms_param->server_rand.len;
 	gen_ms->client_rand.len = in_ms_param->client_rand.len;
 	gen_ms->out_master_secret.len = in_ms_param->out_master_secret.len;
 
-	gen_ms->label.param = buf;
+	gen_ms->label.param = req->dma_buf4;
 	gen_ms->pre_master_secret.param = gen_ms->label.param +
 						gen_ms->label.len;
 	gen_ms->server_rand.param = gen_ms->pre_master_secret.param +
@@ -1863,18 +1848,16 @@ int compat_get_gen_session_key_param(struct prf_req_s *req,
 {
 	struct compat_gen_session_keys *in = &prfiop->req_u.gen_session_key;
 	struct gen_session_keys_s *gen_ses_key = &req->req_u.gen_session_key;
-	int buf_size;
-	uint8_t *buf;
 
-	buf_size = (in->label.len + in->master_secret.len + in->server_rand.len
+	req->dma_len = (in->label.len + in->master_secret.len + in->server_rand.len
 			+ in->client_rand.len + in->out_client_mac_secret.len
 			+ in->out_server_mac_secret.len
 			+ in->out_client_write_key.len
 			+ in->out_server_write_key.len
 			+ in->out_client_write_iv.len
-			+ in->out_server_write_iv.len);
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+			+ in->out_server_write_iv.len + GFP_DMA_BUFFER);
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	gen_ses_key->cipher = in->cipher;
@@ -1889,7 +1872,7 @@ int compat_get_gen_session_key_param(struct prf_req_s *req,
 	gen_ses_key->out_client_write_iv.len = in->out_client_write_iv.len;
 	gen_ses_key->out_server_write_iv.len = in->out_server_write_iv.len;
 
-	gen_ses_key->label.param = buf;
+	gen_ses_key->label.param = req->dma_buf;
 	gen_ses_key->client_rand.param = gen_ses_key->label.param
 					+ gen_ses_key->label.len;
 	gen_ses_key->server_rand.param = gen_ses_key->client_rand.param
@@ -1960,19 +1943,17 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	struct compat_gen_finish_random *in_finish =
 			&prfiop->req_u.gen_finish_rand;
 	struct gen_finish_random_s *gen_finish = &req->req_u.gen_finish_rand;
-	int buf_size;
-	uint8_t *buf;
 
 	if ((in_finish->master_secret.len > PRF_MS_LEN) ||
 		(in_finish->label.len > PRF_LABEL_MAX))
 		return -EINVAL;
 
-	buf_size = (in_finish->label.len + in_finish->master_secret.len
+	req->dma_len = (in_finish->label.len + in_finish->master_secret.len
 			+ gen_finish->seed1.len +
 			gen_finish->seed2.len +
-			gen_finish->out_data.len);
-	buf = kzalloc(buf_size, GFP_DMA);
-	if (!buf)
+			gen_finish->out_data.len + GFP_DMA_BUFFER);
+	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
+	if (!req->dma_buf)
 		return -ENOMEM;
 
 	gen_finish->master_secret.len = in_finish->master_secret.len;
@@ -1981,7 +1962,7 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	gen_finish->seed2.len = in_finish->seed2.len;
 	gen_finish->out_data.len = in_finish->out_data.len;
 
-	gen_finish->label.param = buf;
+	gen_finish->label.param = req->dma_buf4;
 	gen_finish->master_secret.param = gen_finish->label.param +
 						gen_finish->label.len;
 	gen_finish->seed1.param = gen_finish->master_secret.param +

@@ -901,6 +901,8 @@ struct prf_req_s {
 		struct gen_session_keys_s gen_session_key;
 		struct gen_finish_random_s gen_finish_rand;
 	} req_u;
+	void *dma_buf;
+	u32 dma_len;
 	int ret;
 	struct completion comp;
 };

@@ -298,7 +298,12 @@ static int crypto_init_ops(struct crypto_tfm *tfm, u32 type, u32 mask)
 
 static void crypto_exit_ops(struct crypto_tfm *tfm)
 {
-	const struct crypto_type *type = tfm->__crt_alg->cra_type;
+	const struct crypto_type *type;
+
+	if (unlikely(!tfm))
+		return;
+
+	type = tfm->__crt_alg->cra_type;
 
 	if (type) {
 		if (tfm->exit)
@@ -574,7 +579,7 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm)
 {
 	struct crypto_alg *alg;
 
-	if (unlikely(!mem) || unlikely(!tfm->__crt_alg))
+	if (unlikely(!mem))
 		return;
 
 	alg = tfm->__crt_alg;

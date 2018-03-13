@@ -758,6 +758,7 @@ int crypto_run_asym(struct cryptodev_pkc *pkc)
 	if (err) {
 		kfree(pkc->req);
 		crypto_free_pkc(pkc->s);
+		pkc->s = NULL;
 		return err;
 	}
 	if (pkc->type == SYNCHRONOUS)
@@ -767,6 +768,7 @@ int crypto_run_asym(struct cryptodev_pkc *pkc)
 
 out_free_tfm:
 	crypto_free_pkc(pkc->s);
+	pkc->s = NULL;
 	return err;
 }
 

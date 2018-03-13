@@ -130,7 +130,7 @@ static int caam_prf_finish_edesc(struct device *dev, struct prf_req_s *req,
 	edesc->dma_u.finish_edesc.label = dma_map_single(dev,
 			gen_finish_rand->label.param,
 			gen_finish_rand->label.len, DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, edesc->dma_u.finish_edesc.secret)) {
+	if (dma_mapping_error(dev, edesc->dma_u.finish_edesc.label)) {
 		dev_err(dev, "Unable to map memory\n");
 		goto prf_label_fail;
 	}
@@ -185,6 +185,7 @@ static int caam_prf_ms_edesc(struct device *dev, struct prf_req_s *req,
 
 	gen_ms = &req->req_u.gen_ms;
 	edesc->prf_op = req->prf_op;
+
 	edesc->dma_u.ms_edesc.secret = dma_map_single(dev,
 			gen_ms->pre_master_secret.param,
 			gen_ms->pre_master_secret.len, DMA_TO_DEVICE);
@@ -194,7 +195,7 @@ static int caam_prf_ms_edesc(struct device *dev, struct prf_req_s *req,
 	}
 	edesc->dma_u.ms_edesc.label = dma_map_single(dev, gen_ms->label.param,
 			gen_ms->label.len, DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, edesc->dma_u.ms_edesc.secret)) {
+	if (dma_mapping_error(dev, edesc->dma_u.ms_edesc.label)) {
 		dev_err(dev, "Unable to map memory\n");
 		goto prf_label_fail;
 	}
@@ -247,6 +248,7 @@ static int caam_prf_session_key_edesc(struct device *dev, struct prf_req_s *req,
 
 	gen_session_key = &req->req_u.gen_session_key;
 	edesc->prf_op = req->prf_op;
+
 	edesc->dma_u.session_key_edesc.secret = dma_map_single(dev,
 			gen_session_key->master_secret.param,
 			gen_session_key->master_secret.len, DMA_TO_DEVICE);
@@ -257,7 +259,7 @@ static int caam_prf_session_key_edesc(struct device *dev, struct prf_req_s *req,
 	edesc->dma_u.session_key_edesc.label = dma_map_single(dev,
 				gen_session_key->label.param,
 				gen_session_key->label.len, DMA_TO_DEVICE);
-	if (dma_mapping_error(dev, edesc->dma_u.session_key_edesc.secret)) {
+	if (dma_mapping_error(dev, edesc->dma_u.session_key_edesc.label)) {
 		dev_err(dev, "Unable to map memory\n");
 		goto prf_label_fail;
 	}
