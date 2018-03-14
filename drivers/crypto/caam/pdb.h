@@ -588,4 +588,65 @@ struct rsa_priv_f3_pdb {
 	u32		p_q_len;
 } __packed;
 
+/* prf descriptor defines and structure */
+/* input reference ctrl */
+#define PRF_SECRET_OFFSET	21
+#define PRF_LABEL_OFFSET	14
+#define PRF_SEED_PART1_OFFSET	7
+#define PRF_SEED_PART2_OFFSET	0
+/* output reference ctrl */
+#define PRF_OUT_LEN_OFFSET	16
+
+#define PRF_PDB_OP_SHIFT	0
+#define PRF_IKET_ECB		(0x8 << PRF_PDB_OP_SHIFT)
+#define PRF_OEKT_ECB		(0x4 << PRF_PDB_OP_SHIFT)
+#define PRF_IEOV_NO_ENC		(0x2 << PRF_PDB_OP_SHIFT)
+#define PRF_OEOV_NO_ENC		(0x1 << PRF_PDB_OP_SHIFT)
+
+#define TLS_MS_LEN		48
+
+struct prf_gen_ms_desc_s {
+	uint32_t desc_hdr;
+	uint32_t desc_op;
+	uint32_t ip_ref_ctrl;
+	uint32_t op_ref_ctrl;
+	dma_addr_t secret;
+	dma_addr_t label;
+	dma_addr_t seed_part1;
+	dma_addr_t seed_part2;
+	dma_addr_t ms;
+	uint32_t op;
+} __packed;
+
+struct prf_gen_session_desc_s {
+	uint32_t desc_hdr;
+	uint32_t desc_op;
+	uint32_t ip_ref_ctrl;
+	uint32_t op_ref_ctrl;
+	dma_addr_t secret;
+	dma_addr_t label;
+	dma_addr_t seed_part1;
+	dma_addr_t seed_part2;
+	dma_addr_t client_mac_key;
+	dma_addr_t server_mac_key;
+	dma_addr_t client_crypto_key;
+	dma_addr_t server_crypto_key;
+	dma_addr_t client_iv;
+	dma_addr_t server_iv;
+	uint32_t op;
+} __packed;
+
+struct prf_gen_finish_desc_s {
+	uint32_t desc_hdr;
+	uint32_t desc_op;
+	uint32_t ip_ref_ctrl;
+	uint32_t op_ref_ctrl;
+	dma_addr_t secret;
+	dma_addr_t label;
+	dma_addr_t seed_part1;
+	dma_addr_t seed_part2;
+	dma_addr_t verify;
+	uint32_t op;
+} __packed;
+
 #endif

@@ -18,6 +18,7 @@ obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API) += caamhash.o
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API_DESC) += caamhash_desc.o
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API) += caamrng.o
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_PKC_API) += caam_pkc.o
+obj-$(CONFIG_FSL_CAAM_PRF_SUPPORT) += caam_prf.o
 
 caam-objs := ctrl.o
 caam_jr-objs := jr.o key_gen.o
@@ -30,3 +31,5 @@ endif
 obj-$(CONFIG_CRYPTO_DEV_FSL_DPAA2_CAAM) += dpaa2_caam.o
 
 dpaa2_caam-y    := caamalg_qi2.o dpseci.o
+
+caam_prf-objs := caamprf.o prf_desc.o
