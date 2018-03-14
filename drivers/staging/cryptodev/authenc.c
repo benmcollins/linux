@@ -46,7 +46,6 @@
 #include "zc.h"
 #include "util.h"
 #include "cryptlib.h"
-#include "version.h"
 
 
 /* make caop->dst available in scatterlist.

@@ -37,7 +37,6 @@
 #include <linux/scatterlist.h>
 #include "cryptodev_int.h"
 #include "zc.h"
-#include "version.h"
 
 /* Helper functions to assist zero copy.
  * This needs to be redesigned and moved out of the session. --nmav

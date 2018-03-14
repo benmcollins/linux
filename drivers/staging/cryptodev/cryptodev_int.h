@@ -36,6 +36,7 @@
 #define dinfo(level, format, a...) dprintk(level, KERN_INFO, format, ##a)
 #define ddebug(level, format, a...) dprintk(level, KERN_DEBUG, format, ##a)
 
+#define PRF_ENC_HMAC_SECRET_LEN	48
 
 extern int cryptodev_verbosity;
 
@@ -128,6 +129,65 @@ struct compat_crypt_auth_op {
 	compat_uptr_t	iv;
 	uint32_t	iv_len;
 };
+struct compat_prf_secret {
+	int black_key; /* 0/1 if i/p or o/p is
+			   in black(encrypted) form or plain data */
+	__u16 len;
+	compat_uptr_t   param;
+};
+
+struct compat_prf_info {
+	__u16 len;
+	compat_uptr_t   param;
+};
+
+struct compat_gen_master_secret {
+	struct compat_prf_info label;
+	struct compat_prf_secret pre_master_secret;
+	struct compat_prf_info server_rand;
+	struct compat_prf_info client_rand;
+	struct compat_prf_secret out_master_secret;
+};
+
+struct compat_gen_session_keys {
+	__u32	cipher;		/* cryptodev_crypto_op_t */
+	struct compat_prf_info label;
+	struct compat_prf_secret master_secret;
+	struct compat_prf_info server_rand;
+	struct compat_prf_info client_rand;
+	struct compat_prf_secret out_client_mac_secret;
+	struct compat_prf_secret out_server_mac_secret;
+	struct compat_prf_secret out_client_write_key;
+	struct compat_prf_secret out_server_write_key;
+	struct compat_prf_info out_client_write_iv;
+	struct compat_prf_info out_server_write_iv;
+};
+
+struct compat_gen_finish_random {
+	struct compat_prf_info label;
+	struct compat_prf_secret master_secret;
+	struct compat_prf_info seed1; /* 16-byte MD5 */
+	struct compat_prf_info seed2; /* 20-byte SHA-1 */
+	struct compat_prf_info out_data;
+};
+
+/* prf ioctl parameter definition */
+struct compat_prf_param {
+	__u32 prf_op;
+	__u32 tls_version; /* define copied from openssl/tls1.h header file
+				#define TLS1_2_VERSION                  0x0303
+				#define TLS1_1_VERSION                  0x0302
+				#define TLS1_VERSION                    0x0301
+			*/
+	union {
+		struct compat_gen_master_secret gen_ms;
+		struct compat_gen_session_keys gen_session_key;
+		struct compat_gen_finish_random gen_finish_rand;
+	} req_u;
+};
+
+/* prf end here */
+
 
 struct compat_hash_op_data {
 	compat_uptr_t	ses;
@@ -151,7 +211,8 @@ struct compat_hash_op_data {
 #define COMPAT_CIOCASYMASYNCRYPT    _IOW('c', 110, struct compat_crypt_kop)
 #define COMPAT_CIOCASYMFETCHCOOKIE    _IOR('c', 111, \
 				struct compat_pkc_cookie_list_s)
-#define COMPAT_CIOCHASH	_IOWR('c', 114, struct compat_hash_op_data)
+#define COMPAT_CIOCPRF	_IOWR('c', 114, struct compat_prf_param)
+#define COMPAT_CIOCHASH	_IOWR('c', 115, struct compat_hash_op_data)
 #endif /* CONFIG_COMPAT */
 
 /* kernel-internal extension to struct crypt_kop */

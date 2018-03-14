@@ -440,15 +440,11 @@ int cryptodev_pkc_offload(struct cryptodev_pkc *pkc)
 	pkc_request_set_callback(pkc->req, 0, cryptodev_complete_asym, pkc);
 	ret = crypto_pkc_op(pkc->req);
 	if (ret != -EINPROGRESS && ret != 0)
-		goto error;
+		return ret;
 
 	if (pkc->type == SYNCHRONOUS)
 		ret = waitfor(&pkc->result, ret);
 
 	return ret;
 
-error:
-	kfree(pkc->req);
-	crypto_free_pkc(pkc->s);
-	return ret;
 }
