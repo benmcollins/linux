@@ -1,0 +1,6 @@
+config CRYPTODEV
+	tristate "BSD Compatible Crypto Device"
+	default n
+	---help---
+	  Provides a /dev/crypto for userspace access to kernel crypto
+	  routines to make use of hardware off-load and accelerators.
