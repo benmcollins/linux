@@ -48,7 +48,6 @@
 #include "cryptodev_int.h"
 #include "zc.h"
 #include "cryptlib.h"
-#include "version.h"
 
 /* This file contains the traditional operations of encryption
  * and hashing of /dev/crypto.
@@ -752,6 +751,7 @@ int crypto_run_asym(struct cryptodev_pkc *pkc)
 
 out_free_tfm:
 	crypto_free_pkc(pkc->s);
+	pkc->s = NULL;
 	return err;
 }
 
