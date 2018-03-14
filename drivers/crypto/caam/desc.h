@@ -717,6 +717,7 @@
 #define OP_PCL_TLS10_AES_256_CBC_SHA256		 0xff66
 #define OP_PCL_TLS10_AES_256_CBC_SHA384		 0xff63
 #define OP_PCL_TLS10_AES_256_CBC_SHA512		 0xff65
+#define OP_PCL_TLS10_PRF			 0xfffe
 
 
 
