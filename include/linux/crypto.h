@@ -637,6 +637,78 @@ struct crypto_attr_u32 {
 	u32 num;
 };
 
+/* prf definitions */
+/* PRF operation definition */
+#define GEN_MASTER_SECRET		1
+#define GEN_SESSION_KEYS		2
+#define GEN_FINISH_RAND			3
+
+/* tls version copied from openssl tls1.h and need to be synced with openssl*/
+#define TLS1_2_VERSION			0x0303
+#define TLS1_1_VERSION			0x0302
+#define TLS1_VERSION			0x0301
+
+struct prf_secret_s {
+	int black_key; /* 0/1 if i/p or o/p is
+			  in black(encrypted) form or plain data */
+	u16 len;
+	void *param;
+};
+
+struct prf_info_s {
+	u16 len;
+	void *param;
+};
+
+struct gen_master_secret_s {
+	struct prf_info_s label;
+	struct prf_secret_s pre_master_secret;
+	struct prf_info_s server_rand;
+	struct prf_info_s client_rand;
+	struct prf_secret_s out_master_secret;
+};
+
+struct gen_session_keys_s {
+	__u32 cipher;
+	struct prf_info_s label;
+	struct prf_secret_s master_secret;
+	struct prf_info_s server_rand;
+	struct prf_info_s client_rand;
+	struct prf_secret_s out_client_mac_secret;
+	struct prf_secret_s out_server_mac_secret;
+	struct prf_secret_s out_client_write_key;
+	struct prf_secret_s out_server_write_key;
+	struct prf_info_s out_client_write_iv;
+	struct prf_info_s out_server_write_iv;
+};
+
+struct gen_finish_random_s {
+	struct prf_info_s label;
+	struct prf_secret_s master_secret;
+	struct prf_info_s seed1; /* 16-byte MD5 */
+	struct prf_info_s seed2; /* 20-byte SHA-1 */
+	struct prf_info_s out_data;
+};
+
+/* prf ioctl parameter definition */
+struct prf_req_s {
+	u32 prf_op;
+	u32 tls_version;
+	union {
+	        struct gen_master_secret_s gen_ms;
+	        struct gen_session_keys_s gen_session_key;
+	        struct gen_finish_random_s gen_finish_rand;
+	} req_u;
+	void *dma_buf;
+	u32 dma_len;
+	int ret;
+	struct completion comp;
+};
+int prf_op(struct device *dev, struct prf_req_s *req);
+struct device *caam_prf_ctx_create(void);
+void caam_prf_ctx_del(struct device *dev);
+/* end here */
+
 /* 
  * Transform user interface.
  */
