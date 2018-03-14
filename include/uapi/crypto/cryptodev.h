@@ -302,7 +302,99 @@ enum cryptodev_crk_op_t {
 	CRK_ALGORITHM_ALL
 };
 
+/* prf structure definitions */
+/* PRF operation definition */
+#define GEN_MASTER_SECRET	1
+#define GEN_SESSION_KEYS	2
+#define GEN_FINISH_RAND		3
+
+/* tls version copied from openssl tls1.h and need to be synced with openssl*/
+#define TLS1_2_VERSION                  0x0303
+#define TLS1_1_VERSION                  0x0302
+#define TLS1_VERSION                    0x0301
+enum tls1_0_cipher {
+	RC4_40_MD5 = 0x3,
+	RC4_128_MD5,
+	RC4_128_SHA,
+	DES40_CBC_SHA = 0x8,
+	DES_CBC_SHA,
+	DES3_EDE_CBC_SHA,
+	AES_128_CBC_SHA_256 = 0x40,
+	AES_256_CBC_SHA_256 = 0x68,
+	AES_128_CBC_SHA = 0x8c,
+	AES_256_CBC_SHA,
+	AES_128_GCM_SHA_256 = 0x9c,
+	AES_256_GCM_SHA_384,
+	AES_256_CBC_SHA_384 = 0xc024,
+	DES3_EDE_CBC_SHA_256 = 0xff36
+};
+
+struct prf_info {
+	__u16 len;
+	void __user *param;
+};
+
+
+struct prf_secret {
+	int black_key; /* 0/1 if i/p or o/p is
+			   in black(encrypted) form or plain data */
+	__u16 len;
+	void __user *param;
+};
+
+struct gen_master_secret {
+	struct prf_info label;
+	struct prf_secret pre_master_secret;
+	struct prf_info server_rand;
+	struct prf_info client_rand;
+	struct prf_secret out_master_secret;
+};
+
+struct gen_session_keys {
+	__u32	cipher;		/* cryptodev_crypto_op_t */
+	struct prf_info label;
+	struct prf_secret master_secret;
+	struct prf_info server_rand;
+	struct prf_info client_rand;
+	struct prf_secret out_client_mac_secret;
+	struct prf_secret out_server_mac_secret;
+	struct prf_secret out_client_write_key;
+	struct prf_secret out_server_write_key;
+	struct prf_info out_client_write_iv;
+	struct prf_info out_server_write_iv;
+};
+
+struct gen_finish_random {
+	struct prf_info label;
+	struct prf_secret master_secret;
+	struct prf_info seed1; /* 16-byte MD5 */
+	struct prf_info seed2; /* 20-byte SHA-1 */
+	struct prf_info out_data;
+};
+
+/* prf ioctl parameter definition */
+struct prf_param {
+	__u32 prf_op;
+	__u32 tls_version; /* define copied from openssl/tls1.h header file
+				#define TLS1_2_VERSION                  0x0303
+				#define TLS1_1_VERSION                  0x0302
+				#define TLS1_VERSION                    0x0301
+			*/
+	union {
+		struct gen_master_secret gen_ms;
+		struct gen_session_keys gen_session_key;
+		struct gen_finish_random gen_finish_rand;
+	} req_u;
+};
+
+/* prf end here */
 #define CRK_ALGORITHM_MAX	(CRK_ALGORITHM_ALL-1)
+
+/*prf param max limit */
+#define PRF_LABEL_MAX		16
+#define PRF_MS_LEN		48
+#define PRF_PMS_MAX		512
+/* prf end here */
 
 /* features to be queried with CIOCASYMFEAT ioctl
  */
@@ -341,6 +433,7 @@ enum cryptodev_crk_op_t {
 #define CIOCASYMASYNCRYPT    _IOW('c', 112, struct crypt_kop)
 #define CIOCASYMFETCHCOOKIE    _IOR('c', 113, struct pkc_cookie_list_s)
 
-#define CIOCHASH	_IOWR('c', 114, struct hash_op_data)
+#define CIOCPRF		_IOWR('c', 114, struct prf_param)
+#define CIOCHASH	_IOWR('c', 115, struct hash_op_data)
 
 #endif /* L_CRYPTODEV_H */
