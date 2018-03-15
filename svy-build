@@ -11,6 +11,7 @@ bt4)
 ct1)
 	export KDEB_CHANGELOG_DIST=xenial
 	export KDEB_SOURCENAME=linux-cyphre
+	export KDEB_PKGVERSION=$(git describe)
 	export KBUILD_IMAGE=arch/powerpc/boot/uImage
 	export EMAIL="ben.collins@rig.net"
 	export NAME="Benjamin Collins"
