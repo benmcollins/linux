@@ -264,6 +264,12 @@
 				reg = <0x07D80000 0x00280000>;
 			};
 
+			/* 128k block for hash to check secure boot (only uses 0x600 bytes) */
+			partition@7 {
+				label = "secboot-hash";
+				reg = <0x07000000 0x00020000>;
+			};
+
 			/* The whole flash area */
 			partition@20 {
 				label = "whole";
