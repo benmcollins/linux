@@ -96,9 +96,9 @@ fwdir="$objtree/debian/fwtmp"
 kernel_headers_dir="$objtree/debian/hdrtmp"
 libc_headers_dir="$objtree/debian/headertmp"
 dbg_dir="$objtree/debian/dbgtmp"
-packagename=linux-image-$version
-fwpackagename=linux-firmware-image-$version
-kernel_headers_packagename=linux-headers-$version
+packagename=linux-image
+fwpackagename=linux-firmware-image
+kernel_headers_packagename=linux-headers
 libc_headers_packagename=linux-libc-dev
 dbg_packagename=$packagename-dbg
 debarch=
@@ -145,9 +145,9 @@ else
 fi
 # Not all arches include the boot path in KBUILD_IMAGE
 if [ -e $KBUILD_IMAGE ]; then
-	cp $KBUILD_IMAGE "$tmpdir/$installed_image_path"
+	install -D -m644 $KBUILD_IMAGE "$tmpdir/$installed_image_path"
 else
-	cp arch/$ARCH/boot/$KBUILD_IMAGE "$tmpdir/$installed_image_path"
+	install -D -m644 arch/$ARCH/boot/$KBUILD_IMAGE "$tmpdir/$installed_image_path"
 fi
 
 if grep -q "^CONFIG_OF=y" $KCONFIG_CONFIG ; then
@@ -296,7 +296,7 @@ if [ "$ARCH" = "um" ]; then
 	cat <<EOF >> debian/control
 
 Package: $packagename
-Provides: linux-image, linux-image-2.6, linux-modules-$version
+Provides: linux-image, linux-modules
 Architecture: any
 Description: User Mode Linux kernel, version $version
  User-mode Linux is a port of the Linux kernel to its own system call
@@ -313,7 +313,7 @@ else
 	cat <<EOF >> debian/control
 
 Package: $packagename
-Provides: linux-image, linux-image-2.6, linux-modules-$version
+Provides: linux-image, linux-image-2.6, linux-modules
 Suggests: $fwpackagename
 Architecture: any
 Description: Linux kernel, version $version
