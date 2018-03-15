@@ -197,6 +197,15 @@
 				phy-connection-type = "xgmii";
 			};
 		};
+
+		gpio@130000 {
+			/* Allows powering off the system via GPIO signal. */
+			gpio-halt@27 {
+				compatible = "sgy,gpio-halt";
+				gpios = <&gpio0 27 0>;
+				interrupts = <8 1 0 0>;
+			};
+		};
 	};
 
 	rio: rapidio@ffe0c0000 {
