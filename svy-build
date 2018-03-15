@@ -6,10 +6,20 @@ case "$1" in
 bt4)
 	target="$1"
 	dtb="t4240mfcs"
+	image=uImage
 	;;
-ct1*)
+ct1)
+	export KDEB_CHANGELOG_DIST=xenial
+	export KDEB_SOURCENAME=linux-cyphre
+	export KBUILD_IMAGE=arch/powerpc/boot/uImage
 	target="$1"
 	dtb="cts1000"
+	image=bindeb-pkg
+	;;
+ct1-fw)
+	target="$1"
+	dtb="cts1000"
+	image=uImage
 	;;
 *)
 	echo "Pick one of ct1, ct1-fw, or bt4" 1>&2
@@ -37,5 +47,5 @@ if ! test -f "$dir/.config"; then
 	cp "svy-configs/$target" "$dir/.config"
 fi
 
-make uImage
+make $image
 make ${dtb}.dtb
