@@ -245,7 +245,7 @@ fi
 cat <<EOF > debian/changelog
 $sourcename ($packageversion) $distribution; urgency=low
 
-  * Custom built Linux kernel.
+  * Cyphre Kernel
 
  -- $maintainer  $(date -R)
 EOF
