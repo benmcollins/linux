@@ -1,6 +1,7 @@
 #!/bin/bash
 
 target=
+rev="Cyphre-BTv1-1"
 
 case "$1" in
 bt4)
@@ -33,7 +34,7 @@ cpus=`getconf _NPROCESSORS_ONLN`
 nway=`echo "($cpus * 15) / 10" | bc`
 dir="`pwd`/build-$target"
 
-MAKEFLAGS="O=$dir -j$nway ARCH=powerpc"
+MAKEFLAGS="O=$dir -j$nway ARCH=powerpc EXTRAVERSION=-$rev"
 
 arch=`uname -m`
 case "`uname -m`" in
