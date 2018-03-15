@@ -1,0 +1,41 @@
+#!/bin/bash
+
+target=
+
+case "$1" in
+bt4)
+	target="$1"
+	dtb="t4240mfcs"
+	;;
+ct1*)
+	target="$1"
+	dtb="cts1000"
+	;;
+*)
+	echo "Pick one of ct1, ct1-fw, or bt4" 1>&2
+	exit 1
+esac
+
+cpus=`getconf _NPROCESSORS_ONLN`
+nway=`echo "($cpus * 15) / 10" | bc`
+dir="`pwd`/build-$target"
+
+MAKEFLAGS="O=$dir -j$nway ARCH=powerpc"
+
+arch=`uname -m`
+case "`uname -m`" in
+ppc*)
+        ;;
+*)
+        MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=powerpc-linux-gnu-"
+esac
+
+export MAKEFLAGS
+
+if ! test -f "$dir/.config"; then
+	test -d "$dir" || mkdir "$dir"
+	cp "svy-configs/$target" "$dir/.config"
+fi
+
+make uImage
+make ${dtb}.dtb
