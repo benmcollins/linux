@@ -138,17 +138,6 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	const char *alg_name = NULL;
 	const char *hash_name = NULL;
 	int hmac_mode = 1, stream = 0, aead = 0;
-	/*
-	 * With composite aead ciphers, only ckey is used and it can cover all the
-	 * structure space; otherwise both keys may be used simultaneously but they
-	 * are confined to their spaces
-	 */
-	struct {
-		uint8_t ckey[CRYPTO_CIPHER_MAX_KEY_LEN];
-		uint8_t mkey[CRYPTO_HMAC_MAX_KEY_LEN];
-		/* padding space for aead keys */
-		uint8_t pad[RTA_SPACE(sizeof(struct crypto_authenc_key_param))];
-	} keys;
 
 	/* Does the request make sense? */
 	if (unlikely(!sop->cipher && !sop->mac)) {
@@ -311,6 +300,8 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	/* Set-up crypto transform. */
 	if (alg_name) {
 		unsigned int keylen;
+		uint8_t *ckey;
+
 		ret = cryptodev_get_cipher_keylen(&keylen, sop, aead);
 		if (unlikely(ret < 0)) {
 			ddebug(1, "Setting key failed for %s-%zu.",
@@ -318,12 +309,22 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 			goto session_error;
 		}
 
-		ret = cryptodev_get_cipher_key(keys.ckey, sop, aead);
-		if (unlikely(ret < 0))
+		ckey = kmalloc(CRYPTO_CIPHER_MAX_KEY_LEN + CRYPTO_HMAC_MAX_KEY_LEN +
+			       RTA_SPACE(sizeof(struct crypto_authenc_key_param)), GFP_DMA);
+		if (unlikely(!ckey)) {
+			ret = -ENOMEM;
 			goto session_error;
+                }
 
-		ret = cryptodev_cipher_init(&ses_new->cdata, alg_name, keys.ckey,
+		ret = cryptodev_get_cipher_key(ckey, sop, aead);
+		if (unlikely(ret < 0)) {
+			kfree(ckey);
+			goto session_error;
+		}
+
+		ret = cryptodev_cipher_init(&ses_new->cdata, alg_name, ckey,
 						keylen, stream, aead);
+		kfree(ckey);
 		if (ret < 0) {
 			ddebug(1, "Failed to load cipher for %s", alg_name);
 			ret = -EINVAL;
@@ -332,21 +333,31 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	}
 
 	if (hash_name && aead == 0) {
+		uint8_t *mkey = kmalloc(CRYPTO_HMAC_MAX_KEY_LEN, GFP_DMA);
+
+		if (unlikely(!mkey)) {
+			ret = -ENOMEM;
+			goto session_error;
+		}
+
 		if (unlikely(sop->mackeylen > CRYPTO_HMAC_MAX_KEY_LEN)) {
 			ddebug(1, "Setting key failed for %s-%zu.",
 				hash_name, (size_t)sop->mackeylen*8);
+			kfree(mkey);
 			ret = -EINVAL;
 			goto session_error;
 		}
 
-		if (sop->mackey && unlikely(copy_from_user(keys.mkey, sop->mackey,
+		if (sop->mackey && unlikely(copy_from_user(mkey, sop->mackey,
 					    sop->mackeylen))) {
+			kfree(mkey);
 			ret = -EFAULT;
 			goto session_error;
 		}
 
 		ret = cryptodev_hash_init(&ses_new->hdata, hash_name, hmac_mode,
-							keys.mkey, sop->mackeylen);
+					  mkey, sop->mackeylen);
+		kfree(mkey);
 		if (ret != 0) {
 			ddebug(1, "Failed to load hash for %s", hash_name);
 			ret = -EINVAL;
@@ -424,7 +435,10 @@ static int hash_create_session(struct hash_op_data *hash_op)
 	int ret = 0;
 	const char *hash_name;
 	int hmac_mode = 1;
-	uint8_t mkey[CRYPTO_HMAC_MAX_KEY_LEN];
+	uint8_t *mkey = kmalloc(CRYPTO_HMAC_MAX_KEY_LEN, GFP_DMA);
+
+	if (unlikely(!mkey))
+		return -ENOMEM;
 
 	switch (hash_op->mac_op) {
 	case CRYPTO_MD5_HMAC:
@@ -479,11 +493,13 @@ static int hash_create_session(struct hash_op_data *hash_op)
 		break;
 	default:
 		ddebug(1, "bad mac: %d", hash_op->mac_op);
+		kfree(mkey);
 		return -EINVAL;
 	}
 
 	ses = kzalloc(sizeof(*ses), GFP_KERNEL);
 	if (!ses) {
+		kfree(mkey);
 		return -ENOMEM;
 	}
 
@@ -526,6 +542,7 @@ static int hash_create_session(struct hash_op_data *hash_op)
 	return 0;
 
 error_hash:
+	kfree(mkey);
 	hash_destroy_session(ses);
 	return ret;
 }
@@ -1544,7 +1561,7 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	int __user *p = arg;
 	struct session_op sop;
 	struct kernel_hash_op khop;
-	struct kernel_crypt_op kcop;
+	struct kernel_crypt_op *kcop;
 	struct kernel_crypt_auth_op kcaop;
 	struct crypt_priv *pcr = filp->private_data;
 	struct fcrypt *fcr;
@@ -1679,18 +1696,24 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	}
 	return ret;
 	case CIOCCRYPT:
-		if (unlikely(ret = kcop_from_user(&kcop, fcr, arg))) {
+		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
+		if (unlikely(!kcop))
+			return -ENOMEM;
+		if (unlikely(ret = kcop_from_user(kcop, fcr, arg))) {
 			dwarning(1, "Error copying from user");
+			kfree(kcop);
 			return ret;
 		}
 
-		ret = crypto_run(fcr, &kcop);
+		ret = crypto_run(fcr, kcop);
 		if (unlikely(ret)) {
+			kfree(kcop);
 			dwarning(1, "Error in crypto_run");
 			return ret;
 		}
-
-		return kcop_to_user(&kcop, fcr, arg);
+		ret = kcop_to_user(kcop, fcr, arg);
+		kfree(kcop);
+		return ret;
 	case CIOCHASH:
 		if (unlikely(copy_from_user(&khop.hash_op, arg, sizeof(struct hash_op_data)))) {
 			pr_err("copy from user fault\n");
@@ -1735,16 +1758,32 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		return kcaop_to_user(&kcaop, fcr, arg);
 #ifdef ENABLE_ASYNC
 	case CIOCASYNCCRYPT:
-		if (unlikely(ret = kcop_from_user(&kcop, fcr, arg)))
-			return ret;
+		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
+		if (unlikely(!kcop))
+			return -ENOMEM;
 
-		return crypto_async_run(pcr, &kcop);
+		if (unlikely(ret = kcop_from_user(kcop, fcr, arg))) {
+			kfree(kcop);
+			return ret;
+		}
+
+		ret = crypto_async_run(pcr, kcop);
+		kree(kcop);
+		return ret;
 	case CIOCASYNCFETCH:
-		ret = crypto_async_fetch(pcr, &kcop);
-		if (unlikely(ret))
-			return ret;
+		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
+		if (unlikely(!kcop))
+			return -ENOMEM;
 
-		return kcop_to_user(&kcop, fcr, arg);
+		ret = crypto_async_fetch(pcr, kcop);
+		if (unlikely(ret)) {
+			kfree(kcop);
+			return ret;
+		}
+
+		ret = kcop_to_user(kcop, fcr, arg);
+		kfree(kcop);
+		return ret;
 #endif
 	case CIOCASYMASYNCRYPT:
 	{
