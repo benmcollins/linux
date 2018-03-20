@@ -213,7 +213,7 @@ int cryptodev_cipher_init(struct cipher_data *out, const char *alg_name,
 	init_completion(&out->async.result.completion);
 
 	if (aead == 0) {
-		out->async.request = cryptodev_blkcipher_request_alloc(out->async.s, GFP_KERNEL);
+		out->async.request = cryptodev_blkcipher_request_alloc(out->async.s, GFP_DMA);
 		if (unlikely(!out->async.request)) {
 			derr(1, "error allocating async crypto request");
 			ret = -ENOMEM;
@@ -223,7 +223,7 @@ int cryptodev_cipher_init(struct cipher_data *out, const char *alg_name,
 		cryptodev_blkcipher_request_set_callback(out->async.request, 0,
 					cryptodev_complete, &out->async.result);
 	} else {
-		out->async.arequest = aead_request_alloc(out->async.as, GFP_KERNEL);
+		out->async.arequest = aead_request_alloc(out->async.as, GFP_DMA);
 		if (unlikely(!out->async.arequest)) {
 			derr(1, "error allocating async crypto request");
 			ret = -ENOMEM;
@@ -367,7 +367,7 @@ int cryptodev_hash_init(struct hash_data *hdata, const char *alg_name,
 
 	init_completion(&hdata->async.result.completion);
 
-	hdata->async.request = ahash_request_alloc(hdata->async.s, GFP_KERNEL);
+	hdata->async.request = ahash_request_alloc(hdata->async.s, GFP_DMA);
 	if (unlikely(!hdata->async.request)) {
 		derr(0, "error allocating async crypto request");
 		ret = -ENOMEM;
