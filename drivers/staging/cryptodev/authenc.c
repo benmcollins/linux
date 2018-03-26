@@ -357,13 +357,13 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 {
 	int ret, fail = 0;
 	struct crypt_auth_op *caop = &kcaop->caop;
-	uint8_t vhash[AALG_MAX_RESULT_LEN];
-	uint8_t hash_output[AALG_MAX_RESULT_LEN];
 
 	/* TLS authenticates the plaintext except for the padding.
 	 */
 	if (caop->op == COP_ENCRYPT) {
 		if (ses_ptr->hdata.init != 0) {
+			uint8_t *hash_output;
+
 			if (auth_len > 0) {
 				ret = cryptodev_hash_update(&ses_ptr->hdata,
 								auth_sg, auth_len);
@@ -382,14 +382,20 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 				}
 			}
 
+			hash_output = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
+			if (unlikely(!hash_output))
+				return -ENOMEM;
+
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
+				kfree(hash_output);
 				derr(0, "cryptodev_hash_final: %d", ret);
 				return ret;
 			}
 
 			copy_tls_hash(dst_sg, len, hash_output, caop->tag_len);
 			len += caop->tag_len;
+			kfree(hash_output);
 		}
 
 		if (ses_ptr->cdata.init != 0) {
@@ -427,10 +433,16 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		}
 
 		if (ses_ptr->hdata.init != 0) {
-			if (unlikely(caop->tag_len > sizeof(vhash) || caop->tag_len > len)) {
+			uint8_t *vhash, *hash_output;
+
+			if (unlikely(caop->tag_len > AALG_MAX_RESULT_LEN || caop->tag_len > len)) {
 				derr(1, "Illegal tag len size");
 				return -EINVAL;
 			}
+
+			vhash = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
+			if (unlikely(!vhash))
+				return -ENOMEM;
 
 			read_tls_hash(dst_sg, len, vhash, caop->tag_len);
 			len -= caop->tag_len;
@@ -439,6 +451,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 				ret = cryptodev_hash_update(&ses_ptr->hdata,
 								auth_sg, auth_len);
 				if (unlikely(ret)) {
+					kfree(vhash);
 					derr(0, "cryptodev_hash_update: %d", ret);
 					return ret;
 				}
@@ -448,18 +461,30 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 				ret = cryptodev_hash_update(&ses_ptr->hdata,
 									dst_sg, len);
 				if (unlikely(ret)) {
+					kfree(vhash);
 					derr(0, "cryptodev_hash_update: %d", ret);
 					return ret;
 				}
 			}
 
+			hash_output = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
+			if (unlikely(!hash_output)) {
+				kfree(vhash);
+				return -ENOMEM;
+			}
+
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
+				kfree(vhash);
+				kfree(hash_output);
 				derr(0, "cryptodev_hash_final: %d", ret);
 				return ret;
 			}
 
-			if (memcmp(vhash, hash_output, caop->tag_len) != 0 || fail != 0) {
+			ret = memcmp(vhash, hash_output, caop->tag_len);
+			kfree(vhash);
+			kfree(hash_output);
+			if (ret || fail) {
 				derr(2, "MAC verification failed (tag_len: %d)", caop->tag_len);
 				return -EBADMSG;
 			}
@@ -477,10 +502,18 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		  struct scatterlist *auth_sg, uint32_t auth_len,
 		  struct scatterlist *dst_sg, uint32_t len)
 {
-	int ret, fail = 0;
+	int ret = 0, fail = 0;
 	struct crypt_auth_op *caop = &kcaop->caop;
-	uint8_t vhash[AALG_MAX_RESULT_LEN];
-	uint8_t hash_output[AALG_MAX_RESULT_LEN];
+	uint8_t *vhash = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
+	uint8_t *hash_output = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
+
+	if (unlikely(!hash_output || !vhash)) {
+		if (vhash)
+			kfree(vhash);
+		if (hash_output)
+			kfree(hash_output);
+		return -ENOMEM;
+	}
 
 	/* SRTP authenticates the encrypted data.
 	 */
@@ -490,7 +523,7 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 							dst_sg, dst_sg, len);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_encrypt: %d", ret);
-				return ret;
+				goto srtp_error_out;
 			}
 		}
 
@@ -500,46 +533,52 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 								auth_sg, auth_len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					return ret;
+					goto srtp_error_out;
 				}
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				return ret;
+				goto srtp_error_out;
 			}
 
-			if (unlikely(copy_to_user(caop->tag, hash_output, caop->tag_len)))
-				return -EFAULT;
+			if (unlikely(copy_to_user(caop->tag, hash_output, caop->tag_len))) {
+				ret = -EFAULT;
+				goto srtp_error_out;
+			}
 		}
 
 	} else {
 		if (ses_ptr->hdata.init != 0) {
 			if (unlikely(caop->tag_len > sizeof(vhash) || caop->tag_len > len)) {
 				derr(1, "Illegal tag len size");
-				return -EINVAL;
+				ret = -EINVAL;
+				goto srtp_error_out;
 			}
 
-			if (unlikely(copy_from_user(vhash, caop->tag, caop->tag_len)))
-				return -EFAULT;
+			if (unlikely(copy_from_user(vhash, caop->tag, caop->tag_len))) {
+				ret = -EFAULT;
+				goto srtp_error_out;
+			}
 
 			ret = cryptodev_hash_update(&ses_ptr->hdata,
 							auth_sg, auth_len);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_update: %d", ret);
-				return ret;
+				goto srtp_error_out;
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				return ret;
+				goto srtp_error_out;
 			}
 
 			if (memcmp(vhash, hash_output, caop->tag_len) != 0 || fail != 0) {
 				derr(2, "MAC verification failed");
-				return -EBADMSG;
+				ret = -EBADMSG;
+				goto srtp_error_out;
 			}
 		}
 
@@ -549,13 +588,16 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_decrypt: %d", ret);
-				return ret;
+				goto srtp_error_out;
 			}
 		}
 
 	}
 	kcaop->dst_len = len;
-	return 0;
+srtp_error_out:
+	kfree(hash_output);
+	kfree(vhash);
+	return ret;
 }
 
 /* Typical AEAD (i.e. GCM) encryption/decryption.
