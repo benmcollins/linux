@@ -2,7 +2,6 @@
  * Driver for /dev/crypto device (aka CryptoDev)
  *
  * Copyright (c) 2011, 2012 OpenSSL Software Foundation, Inc.
- * Copyright (c) 2014 Freescale Semiconductor, Inc.
  *
  * Author: Nikos Mavrogiannopoulos
  *
@@ -272,84 +271,6 @@ static int fill_caop_from_kcaop(struct kernel_crypt_auth_op *kcaop, struct fcryp
 	return 0;
 }
 
-/* compatibility code for 32bit userlands */
-#ifdef CONFIG_COMPAT
-
-static inline void
-compat_to_crypt_auth_op(struct compat_crypt_auth_op *compat,
-			struct crypt_auth_op *caop)
-{
-	caop->ses = compat->ses;
-	caop->op = compat->op;
-	caop->flags = compat->flags;
-	caop->len = compat->len;
-	caop->auth_len = compat->auth_len;
-	caop->tag_len = compat->tag_len;
-	caop->iv_len = compat->iv_len;
-
-	caop->auth_src = compat_ptr(compat->auth_src);
-	caop->src = compat_ptr(compat->src);
-	caop->dst = compat_ptr(compat->dst);
-	caop->tag = compat_ptr(compat->tag);
-	caop->iv = compat_ptr(compat->iv);
-}
-
-static inline void
-crypt_auth_op_to_compat(struct crypt_auth_op *caop,
-			struct compat_crypt_auth_op *compat)
-{
-	compat->ses = caop->ses;
-	compat->op = caop->op;
-	compat->flags = caop->flags;
-	compat->len = caop->len;
-	compat->auth_len = caop->auth_len;
-	compat->tag_len = caop->tag_len;
-	compat->iv_len = caop->iv_len;
-
-	compat->auth_src = ptr_to_compat(caop->auth_src);
-	compat->src = ptr_to_compat(caop->src);
-	compat->dst = ptr_to_compat(caop->dst);
-	compat->tag = ptr_to_compat(caop->tag);
-	compat->iv = ptr_to_compat(caop->iv);
-}
-
-int compat_kcaop_from_user(struct kernel_crypt_auth_op *kcaop,
-				struct fcrypt *fcr, void __user *arg)
-{
-	struct compat_crypt_auth_op compat_caop;
-
-	if (unlikely(copy_from_user(&compat_caop, arg, sizeof(compat_caop)))) {
-		dprintk(1, KERN_ERR, "Error in copying from userspace\n");
-		return -EFAULT;
-	}
-
-	compat_to_crypt_auth_op(&compat_caop, &kcaop->caop);
-
-	return fill_kcaop_from_caop(kcaop, fcr);
-}
-
-int compat_kcaop_to_user(struct kernel_crypt_auth_op *kcaop,
-				struct fcrypt *fcr, void __user *arg)
-{
-	int ret;
-	struct compat_crypt_auth_op compat_caop;
-
-	ret = fill_caop_from_kcaop(kcaop, fcr);
-	if (unlikely(ret)) {
-		dprintk(1, KERN_ERR, "fill_caop_from_kcaop\n");
-		return ret;
-	}
-
-	crypt_auth_op_to_compat(&kcaop->caop, &compat_caop);
-
-	if (unlikely(copy_to_user(arg, &compat_caop, sizeof(compat_caop)))) {
-		dprintk(1, KERN_ERR, "Error in copying to userspace\n");
-		return -EFAULT;
-	}
-	return 0;
-}
-
-#endif /* CONFIG_COMPAT */
 
 int kcaop_from_user(struct kernel_crypt_auth_op *kcaop,
 			struct fcrypt *fcr, void __user *arg)
@@ -434,18 +355,10 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		 struct scatterlist *auth_sg, uint32_t auth_len,
 		 struct scatterlist *dst_sg, uint32_t len)
 {
-	int ret = 0, fail = 0;
+	int ret, fail = 0;
 	struct crypt_auth_op *caop = &kcaop->caop;
-	uint8_t *vhash = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
-	uint8_t *hash_output = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
-
-	if (unlikely(!hash_output || !vhash)) {
-		if (vhash)
-			kfree(vhash);
-		if (hash_output)
-			kfree(hash_output);
-		return -ENOMEM;
-	}
+	uint8_t vhash[AALG_MAX_RESULT_LEN];
+	uint8_t hash_output[AALG_MAX_RESULT_LEN];
 
 	/* TLS authenticates the plaintext except for the padding.
 	 */
@@ -456,7 +369,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 								auth_sg, auth_len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					goto tls_auth_error;
+					return ret;
 				}
 			}
 
@@ -465,14 +378,14 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 								dst_sg, len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					goto tls_auth_error;
+					return ret;
 				}
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				goto tls_auth_error;
+				return ret;
 			}
 
 			copy_tls_hash(dst_sg, len, hash_output, caop->tag_len);
@@ -489,7 +402,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 							dst_sg, dst_sg, len);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_encrypt: %d", ret);
-				goto tls_auth_error;
+				return ret;
 			}
 		}
 	} else {
@@ -499,7 +412,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_decrypt: %d", ret);
-				goto tls_auth_error;
+				return ret;
 			}
 
 			if (ses_ptr->cdata.blocksize > 1) {
@@ -516,8 +429,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		if (ses_ptr->hdata.init != 0) {
 			if (unlikely(caop->tag_len > sizeof(vhash) || caop->tag_len > len)) {
 				derr(1, "Illegal tag len size");
-				ret = -EINVAL;
-				goto tls_auth_error;
+				return -EINVAL;
 			}
 
 			read_tls_hash(dst_sg, len, vhash, caop->tag_len);
@@ -528,7 +440,7 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 								auth_sg, auth_len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					goto tls_auth_error;
+					return ret;
 				}
 			}
 
@@ -537,28 +449,24 @@ tls_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 									dst_sg, len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					goto tls_auth_error;
+					return ret;
 				}
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				goto tls_auth_error;
+				return ret;
 			}
 
 			if (memcmp(vhash, hash_output, caop->tag_len) != 0 || fail != 0) {
 				derr(2, "MAC verification failed (tag_len: %d)", caop->tag_len);
-				ret = -EBADMSG;
-				goto tls_auth_error;
+				return -EBADMSG;
 			}
 		}
 	}
 	kcaop->dst_len = len;
-tls_auth_error:
-	kfree(hash_output);
-	kfree(vhash);
-	return ret;
+	return 0;
 }
 
 /* Authenticate and encrypt the SRTP way. During decryption
@@ -569,18 +477,10 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		  struct scatterlist *auth_sg, uint32_t auth_len,
 		  struct scatterlist *dst_sg, uint32_t len)
 {
-	int ret = 0, fail = 0;
+	int ret, fail = 0;
 	struct crypt_auth_op *caop = &kcaop->caop;
-	uint8_t *vhash = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
-	uint8_t *hash_output = kmalloc(AALG_MAX_RESULT_LEN, GFP_DMA);
-
-	if (unlikely(!hash_output || !vhash)) {
-		if (vhash)
-			kfree(vhash);
-		if (hash_output)
-			kfree(hash_output);
-		return -ENOMEM;
-	}
+	uint8_t vhash[AALG_MAX_RESULT_LEN];
+	uint8_t hash_output[AALG_MAX_RESULT_LEN];
 
 	/* SRTP authenticates the encrypted data.
 	 */
@@ -590,7 +490,7 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 							dst_sg, dst_sg, len);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_encrypt: %d", ret);
-				goto srtp_error_out;
+				return ret;
 			}
 		}
 
@@ -600,52 +500,46 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 								auth_sg, auth_len);
 				if (unlikely(ret)) {
 					derr(0, "cryptodev_hash_update: %d", ret);
-					goto srtp_error_out;
+					return ret;
 				}
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				goto srtp_error_out;
+				return ret;
 			}
 
-			if (unlikely(copy_to_user(caop->tag, hash_output, caop->tag_len))) {
-				ret = -EFAULT;
-				goto srtp_error_out;
-			}
+			if (unlikely(copy_to_user(caop->tag, hash_output, caop->tag_len)))
+				return -EFAULT;
 		}
 
 	} else {
 		if (ses_ptr->hdata.init != 0) {
 			if (unlikely(caop->tag_len > sizeof(vhash) || caop->tag_len > len)) {
 				derr(1, "Illegal tag len size");
-				ret = -EINVAL;
-				goto srtp_error_out;
+				return -EINVAL;
 			}
 
-			if (unlikely(copy_from_user(vhash, caop->tag, caop->tag_len))) {
-				ret = -EFAULT;
-				goto srtp_error_out;
-			}
+			if (unlikely(copy_from_user(vhash, caop->tag, caop->tag_len)))
+				return -EFAULT;
 
 			ret = cryptodev_hash_update(&ses_ptr->hdata,
 							auth_sg, auth_len);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_update: %d", ret);
-				goto srtp_error_out;
+				return ret;
 			}
 
 			ret = cryptodev_hash_final(&ses_ptr->hdata, hash_output);
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_hash_final: %d", ret);
-				goto srtp_error_out;
+				return ret;
 			}
 
 			if (memcmp(vhash, hash_output, caop->tag_len) != 0 || fail != 0) {
 				derr(2, "MAC verification failed");
-				ret = -EBADMSG;
-				goto srtp_error_out;
+				return -EBADMSG;
 			}
 		}
 
@@ -655,16 +549,13 @@ srtp_auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 			if (unlikely(ret)) {
 				derr(0, "cryptodev_cipher_decrypt: %d", ret);
-				goto srtp_error_out;
+				return ret;
 			}
 		}
 
 	}
 	kcaop->dst_len = len;
-srtp_error_out:
-	kfree(hash_output);
-	kfree(vhash);
-	return ret;
+	return 0;
 }
 
 /* Typical AEAD (i.e. GCM) encryption/decryption.
@@ -717,96 +608,187 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 	return 0;
 }
 
-/* This is the main crypto function - zero-copy edition */
+static int crypto_auth_zc_srtp(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
+{
+	struct scatterlist *dst_sg, *auth_sg;
+	struct crypt_auth_op *caop = &kcaop->caop;
+	int ret;
+
+	if (unlikely(ses_ptr->cdata.init != 0 &&
+		(ses_ptr->cdata.stream == 0 || ses_ptr->cdata.aead != 0))) {
+		derr(0, "Only stream modes are allowed in SRTP mode (but not AEAD)");
+		return -EINVAL;
+	}
+
+	ret = get_userbuf_srtp(ses_ptr, kcaop, &auth_sg, &dst_sg);
+	if (unlikely(ret)) {
+		derr(1, "get_userbuf_srtp(): Error getting user pages.");
+		return ret;
+	}
+
+	ret = srtp_auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
+			dst_sg, caop->len);
+
+	release_user_pages(ses_ptr);
+
+	return ret;
+}
+
+static int crypto_auth_zc_tls(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
+{
+	struct crypt_auth_op *caop = &kcaop->caop;
+	struct scatterlist *dst_sg, *auth_sg;
+	unsigned char *auth_buf = NULL;
+	struct scatterlist tmp;
+	int ret;
+
+	if (unlikely(caop->auth_len > PAGE_SIZE)) {
+		derr(1, "auth data len is excessive.");
+		return -EINVAL;
+	}
+
+	auth_buf = (char *)__get_free_page(GFP_KERNEL);
+	if (unlikely(!auth_buf)) {
+		derr(1, "unable to get a free page.");
+		return -ENOMEM;
+	}
+
+	if (caop->auth_src && caop->auth_len > 0) {
+		if (unlikely(copy_from_user(auth_buf, caop->auth_src, caop->auth_len))) {
+			derr(1, "unable to copy auth data from userspace.");
+			ret = -EFAULT;
+			goto free_auth_buf;
+		}
+
+		sg_init_one(&tmp, auth_buf, caop->auth_len);
+		auth_sg = &tmp;
+	} else {
+		auth_sg = NULL;
+	}
+
+	ret = get_userbuf_tls(ses_ptr, kcaop, &dst_sg);
+	if (unlikely(ret)) {
+		derr(1, "get_userbuf_tls(): Error getting user pages.");
+		goto free_auth_buf;
+	}
+
+	ret = tls_auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
+			dst_sg, caop->len);
+	release_user_pages(ses_ptr);
+
+free_auth_buf:
+	free_page((unsigned long)auth_buf);
+	return ret;
+}
+
+static int crypto_auth_zc_aead(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
+{
+	struct scatterlist *dst_sg;
+	struct scatterlist *src_sg;
+	struct crypt_auth_op *caop = &kcaop->caop;
+	unsigned char *auth_buf = NULL;
+	int ret;
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0))
+	struct scatterlist tmp;
+	struct scatterlist *auth_sg;
+#else
+	struct scatterlist auth1[2];
+	struct scatterlist auth2[2];
+#endif
+
+	if (unlikely(ses_ptr->cdata.init == 0 ||
+		(ses_ptr->cdata.stream == 0 && ses_ptr->cdata.aead == 0))) {
+		derr(0, "Only stream and AEAD ciphers are allowed for authenc");
+		return -EINVAL;
+	}
+
+	if (unlikely(caop->auth_len > PAGE_SIZE)) {
+		derr(1, "auth data len is excessive.");
+		return -EINVAL;
+	}
+
+	auth_buf = (char *)__get_free_page(GFP_KERNEL);
+	if (unlikely(!auth_buf)) {
+		derr(1, "unable to get a free page.");
+		return -ENOMEM;
+	}
+
+	ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
+			kcaop->task, kcaop->mm, &src_sg, &dst_sg);
+	if (unlikely(ret)) {
+		derr(1, "get_userbuf(): Error getting user pages.");
+		goto free_auth_buf;
+	}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0))
+	if (caop->auth_src && caop->auth_len > 0) {
+		if (unlikely(copy_from_user(auth_buf, caop->auth_src, caop->auth_len))) {
+			derr(1, "unable to copy auth data from userspace.");
+			ret = -EFAULT;
+			goto free_pages;
+		}
+
+		sg_init_one(&tmp, auth_buf, caop->auth_len);
+		auth_sg = &tmp;
+	} else {
+		auth_sg = NULL;
+	}
+
+	ret = auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
+			src_sg, dst_sg, caop->len);
+#else
+	if (caop->auth_src && caop->auth_len > 0) {
+		if (unlikely(copy_from_user(auth_buf, caop->auth_src, caop->auth_len))) {
+			derr(1, "unable to copy auth data from userspace.");
+			ret = -EFAULT;
+			goto free_pages;
+		}
+
+		sg_init_table(auth1, 2);
+		sg_set_buf(auth1, auth_buf, caop->auth_len);
+		sg_chain(auth1, 2, src_sg);
+
+		if (src_sg == dst_sg) {
+			src_sg = auth1;
+			dst_sg = auth1;
+		} else {
+			sg_init_table(auth2, 2);
+			sg_set_buf(auth2, auth_buf, caop->auth_len);
+			sg_chain(auth2, 2, dst_sg);
+			src_sg = auth1;
+			dst_sg = auth2;
+		}
+	}
+
+	ret = auth_n_crypt(ses_ptr, kcaop, NULL, caop->auth_len,
+			src_sg, dst_sg, caop->len);
+#endif
+
+free_pages:
+	release_user_pages(ses_ptr);
+
+free_auth_buf:
+	free_page((unsigned long)auth_buf);
+
+	return ret;
+}
+
 static int
 __crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
 {
-	struct scatterlist *dst_sg, *auth_sg, *src_sg;
 	struct crypt_auth_op *caop = &kcaop->caop;
-	int ret = 0;
+	int ret;
 
 	if (caop->flags & COP_FLAG_AEAD_SRTP_TYPE) {
-		if (unlikely(ses_ptr->cdata.init != 0 &&
-		             (ses_ptr->cdata.stream == 0 ||
-			      ses_ptr->cdata.aead != 0))) {
-			derr(0, "Only stream modes are allowed in SRTP mode (but not AEAD)");
-			return -EINVAL;
-		}
-
-		ret = get_userbuf_srtp(ses_ptr, kcaop, &auth_sg, &dst_sg);
-		if (unlikely(ret)) {
-			derr(1, "get_userbuf_srtp(): Error getting user pages.");
-			return ret;
-		}
-
-		ret = srtp_auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
-			   dst_sg, caop->len);
-
-		release_user_pages(ses_ptr);
-	} else { /* TLS and normal cases. Here auth data are usually small
-	          * so we just copy them to a free page, instead of trying
-	          * to map them.
-	          */
-		unsigned char *auth_buf = NULL;
-		struct scatterlist tmp;
-
-		if (unlikely(caop->auth_len > PAGE_SIZE)) {
-			derr(1, "auth data len is excessive.");
-			return -EINVAL;
-		}
-
-		auth_buf = (char *)__get_free_page(GFP_KERNEL);
-		if (unlikely(!auth_buf)) {
-			derr(1, "unable to get a free page.");
-			return -ENOMEM;
-		}
-
-		if (caop->auth_src && caop->auth_len > 0) {
-			if (unlikely(copy_from_user(auth_buf, caop->auth_src, caop->auth_len))) {
-				derr(1, "unable to copy auth data from userspace.");
-				ret = -EFAULT;
-				goto free_auth_buf;
-			}
-
-			sg_init_one(&tmp, auth_buf, caop->auth_len);
-			auth_sg = &tmp;
-		} else {
-			auth_sg = NULL;
-		}
-
-		if (caop->flags & COP_FLAG_AEAD_TLS_TYPE && ses_ptr->cdata.aead == 0) {
-			ret = get_userbuf_tls(ses_ptr, kcaop, &dst_sg);
-			if (unlikely(ret)) {
-				derr(1, "get_userbuf_tls(): Error getting user pages.");
-				goto free_auth_buf;
-			}
-
-			ret = tls_auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
-				   dst_sg, caop->len);
-		} else {
-			if (unlikely(ses_ptr->cdata.init == 0 ||
-			             (ses_ptr->cdata.stream == 0 &&
-				      ses_ptr->cdata.aead == 0))) {
-				derr(0, "Only stream and AEAD ciphers are allowed for authenc");
-				ret = -EINVAL;
-				goto free_auth_buf;
-			}
-
-			ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
-					  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
-			if (unlikely(ret)) {
-				derr(1, "get_userbuf(): Error getting user pages.");
-				goto free_auth_buf;
-			}
-
-			ret = auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
-					   src_sg, dst_sg, caop->len);
-		}
-
-		release_user_pages(ses_ptr);
-
-free_auth_buf:
-		free_page((unsigned long)auth_buf);
+		ret = crypto_auth_zc_srtp(ses_ptr, kcaop);
+	} else if (caop->flags & COP_FLAG_AEAD_TLS_TYPE &&
+		   ses_ptr->cdata.aead == 0) {
+		ret = crypto_auth_zc_tls(ses_ptr, kcaop);
+	} else if (ses_ptr->cdata.aead) {
+		ret = crypto_auth_zc_aead(ses_ptr, kcaop);
+	} else {
+		ret = -EINVAL;
 	}
 
 	return ret;

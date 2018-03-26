@@ -1,10 +1,6 @@
-/*
- * Copyright 2012 Freescale Semiconductor, Inc.
- *
- * This is a source compatible implementation with the original API of
+/* This is a source compatible implementation with the original API of
  * cryptodev by Angelos D. Keromytis, found at openbsd cryptodev.h.
- * Placed under public domain
- */
+ * Placed under public domain */
 
 #ifndef L_CRYPTODEV_H
 #define L_CRYPTODEV_H
@@ -46,7 +42,6 @@ enum cryptodev_crypto_op_t {
 	CRYPTO_AES_XTS = 22,
 	CRYPTO_AES_ECB = 23,
 	CRYPTO_AES_GCM = 50,
-	CRYPTO_CRC32C,
 
 	CRYPTO_CAMELLIA_CBC = 101,
 	CRYPTO_RIPEMD160,
@@ -55,14 +50,7 @@ enum cryptodev_crypto_op_t {
 	CRYPTO_SHA2_384,
 	CRYPTO_SHA2_512,
 	CRYPTO_SHA2_224_HMAC,
-	CRYPTO_TLS10_3DES_CBC_HMAC_SHA1,
 	CRYPTO_TLS10_AES_CBC_HMAC_SHA1,
-	CRYPTO_TLS11_3DES_CBC_HMAC_SHA1,
-	CRYPTO_TLS11_AES_CBC_HMAC_SHA1,
-	CRYPTO_TLS12_3DES_CBC_HMAC_SHA1,
-	CRYPTO_TLS12_AES_CBC_HMAC_SHA1,
-	CRYPTO_TLS12_AES_CBC_HMAC_SHA256,
-	CRYPTO_AUTHENC_HMAC_SHA1_CBC_AES,
 	CRYPTO_ALGORITHM_ALL, /* Keep updated - see below */
 };
 
@@ -169,19 +157,6 @@ struct crypt_auth_op {
 	__u32   iv_len;
 };
 
-/* data container for CIOCHASH operations */
-struct hash_op_data {
-	struct csession	*ses;	/* session identifier */
-	__u32	mac_op;		/* cryptodev_crypto_op_t */
-	__u8	*mackey;
-	__u32	mackeylen;
-
-	__u16	flags;		/* see COP_FLAG_* */
-	__u32	len;		/* length of source data */
-	__u8	*src;		/* source data */
-	__u8	*mac_result;
-};
-
 /* In plain AEAD mode the following are required:
  *  flags   : 0
  *  iv      : the initialization vector (12 bytes)
@@ -255,13 +230,6 @@ struct hash_op_data {
 #define	CRYPTO_ALG_FLAG_RNG_ENABLE	2
 #define	CRYPTO_ALG_FLAG_DSA_SHA		4
 
-enum ec_curve_t {
-	EC_DISCRETE_LOG,
-	EC_PRIME,
-	EC_BINARY,
-	MAX_EC_TYPE
-};
-
 struct crparam {
 	__u8	*crp_p;
 	__u32	crp_nbits;
@@ -277,17 +245,6 @@ struct crypt_kop {
 	__u16	crk_oparams;
 	__u32	crk_pad1;
 	struct crparam	crk_param[CRK_MAXPARAM];
-	enum ec_curve_t curve_type; /* 0 == Discrete Log,
-				1 = EC_PRIME, 2 = EC_BINARY */
-	void *cookie;
-};
-
-#define MAX_COOKIES 4
-
-struct pkc_cookie_list_s {
-	int cookie_available;
-	void *cookie[MAX_COOKIES];
-	int status[MAX_COOKIES];
 };
 
 enum cryptodev_crk_op_t {
@@ -296,116 +253,19 @@ enum cryptodev_crk_op_t {
 	CRK_DSA_SIGN = 2,
 	CRK_DSA_VERIFY = 3,
 	CRK_DH_COMPUTE_KEY = 4,
-	CRK_DSA_GENERATE_KEY = 5,
-	CRK_DH_GENERATE_KEY = 6,
-	CRK_RSA_GENERATE_KEY = 7,
 	CRK_ALGORITHM_ALL
 };
 
-/* prf structure definitions */
-/* PRF operation definition */
-#define GEN_MASTER_SECRET	1
-#define GEN_SESSION_KEYS	2
-#define GEN_FINISH_RAND		3
-
-/* tls version copied from openssl tls1.h and need to be synced with openssl*/
-#define TLS1_2_VERSION                  0x0303
-#define TLS1_1_VERSION                  0x0302
-#define TLS1_VERSION                    0x0301
-enum tls1_0_cipher {
-	RC4_40_MD5 = 0x3,
-	RC4_128_MD5,
-	RC4_128_SHA,
-	DES40_CBC_SHA = 0x8,
-	DES_CBC_SHA,
-	DES3_EDE_CBC_SHA,
-	AES_128_CBC_SHA_256 = 0x40,
-	AES_256_CBC_SHA_256 = 0x68,
-	AES_128_CBC_SHA = 0x8c,
-	AES_256_CBC_SHA,
-	AES_128_GCM_SHA_256 = 0x9c,
-	AES_256_GCM_SHA_384,
-	AES_256_CBC_SHA_384 = 0xc024,
-	DES3_EDE_CBC_SHA_256 = 0xff36
-};
-
-struct prf_info {
-	__u16 len;
-	void __user *param;
-};
-
-
-struct prf_secret {
-	int black_key; /* 0/1 if i/p or o/p is
-			   in black(encrypted) form or plain data */
-	__u16 len;
-	void __user *param;
-};
-
-struct gen_master_secret {
-	struct prf_info label;
-	struct prf_secret pre_master_secret;
-	struct prf_info server_rand;
-	struct prf_info client_rand;
-	struct prf_secret out_master_secret;
-};
-
-struct gen_session_keys {
-	__u32	cipher;		/* cryptodev_crypto_op_t */
-	struct prf_info label;
-	struct prf_secret master_secret;
-	struct prf_info server_rand;
-	struct prf_info client_rand;
-	struct prf_secret out_client_mac_secret;
-	struct prf_secret out_server_mac_secret;
-	struct prf_secret out_client_write_key;
-	struct prf_secret out_server_write_key;
-	struct prf_info out_client_write_iv;
-	struct prf_info out_server_write_iv;
-};
-
-struct gen_finish_random {
-	struct prf_info label;
-	struct prf_secret master_secret;
-	struct prf_info seed1; /* 16-byte MD5 */
-	struct prf_info seed2; /* 20-byte SHA-1 */
-	struct prf_info out_data;
-};
-
-/* prf ioctl parameter definition */
-struct prf_param {
-	__u32 prf_op;
-	__u32 tls_version; /* define copied from openssl/tls1.h header file
-				#define TLS1_2_VERSION                  0x0303
-				#define TLS1_1_VERSION                  0x0302
-				#define TLS1_VERSION                    0x0301
-			*/
-	union {
-		struct gen_master_secret gen_ms;
-		struct gen_session_keys gen_session_key;
-		struct gen_finish_random gen_finish_rand;
-	} req_u;
-};
-
-/* prf end here */
 #define CRK_ALGORITHM_MAX	(CRK_ALGORITHM_ALL-1)
-
-/*prf param max limit */
-#define PRF_LABEL_MAX		16
-#define PRF_MS_LEN		48
-#define PRF_PMS_MAX		512
-/* prf end here */
 
 /* features to be queried with CIOCASYMFEAT ioctl
  */
 #define CRF_MOD_EXP		(1 << CRK_MOD_EXP)
 #define CRF_MOD_EXP_CRT		(1 << CRK_MOD_EXP_CRT)
-#define CRF_RSA_GENERATE_KEY	(1 << CRK_RSA_GENERATE_KEY)
 #define CRF_DSA_SIGN		(1 << CRK_DSA_SIGN)
 #define CRF_DSA_VERIFY		(1 << CRK_DSA_VERIFY)
 #define CRF_DH_COMPUTE_KEY	(1 << CRK_DH_COMPUTE_KEY)
-#define CRF_DSA_GENERATE_KEY	(1 << CRK_DSA_GENERATE_KEY)
-#define CRF_DH_GENERATE_KEY	(1 << CRK_DH_GENERATE_KEY)
+
 
 /* ioctl's. Compatible with old linux cryptodev.h
  */
@@ -429,11 +289,5 @@ struct prf_param {
  */
 #define CIOCASYNCCRYPT    _IOW('c', 110, struct crypt_op)
 #define CIOCASYNCFETCH    _IOR('c', 111, struct crypt_op)
-/* additional ioctls for asynchronous  operation for asymmetric ciphers*/
-#define CIOCASYMASYNCRYPT    _IOW('c', 112, struct crypt_kop)
-#define CIOCASYMFETCHCOOKIE    _IOR('c', 113, struct pkc_cookie_list_s)
-
-#define CIOCPRF		_IOWR('c', 114, struct prf_param)
-#define CIOCHASH	_IOWR('c', 115, struct hash_op_data)
 
 #endif /* L_CRYPTODEV_H */

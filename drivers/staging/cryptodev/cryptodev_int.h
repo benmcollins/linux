@@ -1,6 +1,4 @@
-/* cipher stuff
- * Copyright 2012 Freescale Semiconductor, Inc.
- */
+/* cipher stuff */
 #ifndef CRYPTODEV_INT_H
 # define CRYPTODEV_INT_H
 
@@ -21,6 +19,10 @@
 #include <linux/scatterlist.h>
 #include <crypto/cryptodev.h>
 #include <crypto/aead.h>
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0))
+#include <crypto/internal/rsa.h>
+#endif
+
 
 #define PFX "cryptodev: "
 #define dprintk(level, severity, format, a...)			\
@@ -36,7 +38,11 @@
 #define dinfo(level, format, a...) dprintk(level, KERN_INFO, format, ##a)
 #define ddebug(level, format, a...) dprintk(level, KERN_DEBUG, format, ##a)
 
-#define PRF_ENC_HMAC_SECRET_LEN	48
+
+struct cryptodev_result {
+	struct completion completion;
+	int err;
+};
 
 extern int cryptodev_verbosity;
 
@@ -76,152 +82,13 @@ struct compat_crypt_op {
 	compat_uptr_t	iv;/* initialization vector for encryption operations */
 };
 
-/* input of CIOCKEY */
-struct compat_crparam {
-	compat_uptr_t	crp_p;
-	uint32_t	crp_nbits;
-};
-
-struct compat_crypt_kop {
-	uint32_t	crk_op;		/* cryptodev_crk_ot_t */
-	uint32_t	crk_status;
-	uint16_t	crk_iparams;
-	uint16_t	crk_oparams;
-	uint32_t	crk_pad1;
-	struct compat_crparam	crk_param[CRK_MAXPARAM];
-	enum ec_curve_t curve_type; /* 0 == Discrete Log, 1 = EC_PRIME,
-				 2 = EC_BINARY */
-	compat_uptr_t cookie;
-};
-
-struct compat_pkc_cookie_list_s {
-	int cookie_available;
-	compat_uptr_t cookie[MAX_COOKIES];
-	int status[MAX_COOKIES];
-};
-
- /* input of CIOCAUTHCRYPT */
-struct compat_crypt_auth_op {
-	uint32_t	ses;		/* session identifier */
-	uint16_t	op;		/* COP_ENCRYPT or COP_DECRYPT */
-	uint16_t	flags;		/* see COP_FLAG_AEAD_* */
-	uint32_t	len;		/* length of source data */
-	uint32_t	auth_len;	/* length of auth data */
-	compat_uptr_t	auth_src;	/* authenticated-only data */
-
-	/* The current implementation is more efficient if data are
-	 * encrypted in-place (src==dst). */
-	compat_uptr_t	src;		/* data to be encrypted and
-	authenticated */
-	compat_uptr_t	dst;		/* pointer to output data. Must have
-					 * space for tag. For TLS this should be
-					 * at least len + tag_size + block_size
-					 * for padding */
-
-	compat_uptr_t	tag;		/* where the tag will be copied to. TLS
-					 * mode doesn't use that as tag is
-					 * copied to dst.
-					 * SRTP mode copies tag there. */
-	uint32_t	tag_len;	/* the length of the tag. Use zero for
-					 * digest size or max tag. */
-
-	/* initialization vector for encryption operations */
-	compat_uptr_t	iv;
-	uint32_t	iv_len;
-};
-struct compat_prf_secret {
-	int black_key; /* 0/1 if i/p or o/p is
-			   in black(encrypted) form or plain data */
-	__u16 len;
-	compat_uptr_t   param;
-};
-
-struct compat_prf_info {
-	__u16 len;
-	compat_uptr_t   param;
-};
-
-struct compat_gen_master_secret {
-	struct compat_prf_info label;
-	struct compat_prf_secret pre_master_secret;
-	struct compat_prf_info server_rand;
-	struct compat_prf_info client_rand;
-	struct compat_prf_secret out_master_secret;
-};
-
-struct compat_gen_session_keys {
-	__u32	cipher;		/* cryptodev_crypto_op_t */
-	struct compat_prf_info label;
-	struct compat_prf_secret master_secret;
-	struct compat_prf_info server_rand;
-	struct compat_prf_info client_rand;
-	struct compat_prf_secret out_client_mac_secret;
-	struct compat_prf_secret out_server_mac_secret;
-	struct compat_prf_secret out_client_write_key;
-	struct compat_prf_secret out_server_write_key;
-	struct compat_prf_info out_client_write_iv;
-	struct compat_prf_info out_server_write_iv;
-};
-
-struct compat_gen_finish_random {
-	struct compat_prf_info label;
-	struct compat_prf_secret master_secret;
-	struct compat_prf_info seed1; /* 16-byte MD5 */
-	struct compat_prf_info seed2; /* 20-byte SHA-1 */
-	struct compat_prf_info out_data;
-};
-
-/* prf ioctl parameter definition */
-struct compat_prf_param {
-	__u32 prf_op;
-	__u32 tls_version; /* define copied from openssl/tls1.h header file
-				#define TLS1_2_VERSION                  0x0303
-				#define TLS1_1_VERSION                  0x0302
-				#define TLS1_VERSION                    0x0301
-			*/
-	union {
-		struct compat_gen_master_secret gen_ms;
-		struct compat_gen_session_keys gen_session_key;
-		struct compat_gen_finish_random gen_finish_rand;
-	} req_u;
-};
-
-/* prf end here */
-
-
-struct compat_hash_op_data {
-	compat_uptr_t	ses;
-	uint32_t	mac_op;		/* cryptodev_crypto_op_t */
-	compat_uptr_t	mackey;
-	uint32_t	mackeylen;
-
-	uint16_t	flags;		/* see COP_FLAG_* */
-	uint32_t	len;		/* length of source data */
-	compat_uptr_t	src;		/* source data */
-	compat_uptr_t	mac_result;
-};
-
 /* compat ioctls, defined for the above structs */
 #define COMPAT_CIOCGSESSION    _IOWR('c', 102, struct compat_session_op)
 #define COMPAT_CIOCCRYPT       _IOWR('c', 104, struct compat_crypt_op)
-#define COMPAT_CIOCKEY    _IOWR('c', 105, struct compat_crypt_kop)
 #define COMPAT_CIOCASYNCCRYPT  _IOW('c', 107, struct compat_crypt_op)
 #define COMPAT_CIOCASYNCFETCH  _IOR('c', 108, struct compat_crypt_op)
-#define COMPAT_CIOCAUTHCRYPT   _IOWR('c', 109, struct compat_crypt_auth_op)
-#define COMPAT_CIOCASYMASYNCRYPT    _IOW('c', 110, struct compat_crypt_kop)
-#define COMPAT_CIOCASYMFETCHCOOKIE    _IOR('c', 111, \
-				struct compat_pkc_cookie_list_s)
-#define COMPAT_CIOCPRF	_IOWR('c', 114, struct compat_prf_param)
-#define COMPAT_CIOCHASH	_IOWR('c', 115, struct compat_hash_op_data)
+
 #endif /* CONFIG_COMPAT */
-
-/* kernel-internal extension to struct crypt_kop */
-struct kernel_crypt_kop {
-	struct crypt_kop kop;
-
-	struct task_struct *task;
-	struct mm_struct *mm;
-};
 
 /* kernel-internal extension to struct crypt_op */
 struct kernel_crypt_op {
@@ -237,15 +104,6 @@ struct kernel_crypt_op {
 	struct mm_struct *mm;
 };
 
-struct kernel_hash_op {
-	struct hash_op_data hash_op;
-
-	int digestsize;
-	uint8_t hash_output[AALG_MAX_RESULT_LEN];
-	struct task_struct *task;
-	struct mm_struct *mm;
-};
-
 struct kernel_crypt_auth_op {
 	struct crypt_auth_op caop;
 
@@ -257,16 +115,19 @@ struct kernel_crypt_auth_op {
 	struct mm_struct *mm;
 };
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0))
+struct kernel_crypt_pkop {
+	struct crypt_kop pkop;
+
+	struct crypto_akcipher *s;    /* Transform pointer from CryptoAPI */
+	struct akcipher_request *req; /* PKC request allocated from CryptoAPI */
+	struct cryptodev_result result;	/* updated by completion handler */
+};
+
+int crypto_run_asym(struct kernel_crypt_pkop *pkop);
+#endif
+
 /* auth */
-
-#ifdef CONFIG_COMPAT
-int compat_kcaop_from_user(struct kernel_crypt_auth_op *kcaop,
-				struct fcrypt *fcr, void __user *arg);
-
-int compat_kcaop_to_user(struct kernel_crypt_auth_op *kcaop,
-				struct fcrypt *fcr, void __user *arg);
-#endif /* CONFIG_COMPAT */
-
 
 int kcaop_from_user(struct kernel_crypt_auth_op *kcop,
 			struct fcrypt *fcr, void __user *arg);
@@ -274,17 +135,9 @@ int kcaop_to_user(struct kernel_crypt_auth_op *kcaop,
 		struct fcrypt *fcr, void __user *arg);
 int crypto_auth_run(struct fcrypt *fcr, struct kernel_crypt_auth_op *kcaop);
 int crypto_run(struct fcrypt *fcr, struct kernel_crypt_op *kcop);
-int hash_run(struct kernel_hash_op *khop);
 
 #include <cryptlib.h>
 
-/* Cryptodev Key operation handler */
-int crypto_bn_modexp(struct cryptodev_pkc *);
-int crypto_modexp_crt(struct cryptodev_pkc *);
-int crypto_kop_dsasign(struct cryptodev_pkc *);
-int crypto_kop_dsaverify(struct cryptodev_pkc *);
-int crypto_run_asym(struct cryptodev_pkc *);
-void cryptodev_complete_asym(struct crypto_async_request *, int);
 
 /* other internal structs */
 struct csession {

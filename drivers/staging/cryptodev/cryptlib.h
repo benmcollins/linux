@@ -1,16 +1,7 @@
-/*
- * Copyright 2012 Freescale Semiconductor, Inc.
- */
 #ifndef CRYPTLIB_H
 # define CRYPTLIB_H
 
 #include <linux/version.h>
-
-struct cryptodev_result {
-	struct completion completion;
-	int err;
-};
-
 #include "cipherapi.h"
 
 struct cipher_data {
@@ -104,30 +95,8 @@ int cryptodev_hash_reset(struct hash_data *hdata);
 void cryptodev_hash_deinit(struct hash_data *hdata);
 int cryptodev_hash_init(struct hash_data *hdata, const char *alg_name,
 			int hmac_mode, void *mackey, size_t mackeylen);
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0))
+int crypto_bn_modexp(struct kernel_crypt_pkop *pkop);
+#endif
 
-/* Operation Type */
-enum offload_type {
-	SYNCHRONOUS,
-	ASYNCHRONOUS
-};
-
-struct cryptodev_pkc {
-	struct list_head list; /* To maintain the Jobs in completed
-				 cryptodev lists */
-	struct kernel_crypt_kop kop;
-	struct crypto_pkc *s;    /* Transform pointer from CryptoAPI */
-	struct cryptodev_result result;	/* Result to be updated by
-					 completion handler */
-	struct pkc_request *req; /* PKC request allocated from CryptoAPI */
-	enum offload_type type; /* Synchronous Vs Asynchronous request */
-	/*
-	 * cookie used for transfering tranparent information from async
-	 * submission to async fetch. Currently some dynamic allocated
-	 * buffers are maintained which will be freed later during fetch
-	 */
-	void *cookie;
-	struct crypt_priv *priv;
-};
-
-int cryptodev_pkc_offload(struct cryptodev_pkc  *);
 #endif
