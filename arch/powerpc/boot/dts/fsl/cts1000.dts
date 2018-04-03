@@ -142,22 +142,6 @@
 		};
 
 		fman@400000 {
-			port@88000 { status = "disabled"; };
-			port@a8000 { status = "disabled"; };
-			ethernet@e0000 { status = "disabled"; };
-
-			port@89000 { status = "disabled"; };
-			port@a9000 { status = "disabled"; };
-			ethernet@e2000 { status = "disabled"; };
-
-			port@8a000 { status = "disabled"; };
-			port@aa000 { status = "disabled"; };
-			ethernet@e4000 { status = "disabled"; };
-
-			port@8b000 { status = "disabled"; };
-			port@ab000 { status = "disabled"; };
-			ethernet@e6000 { status = "disabled"; };
-
 			ethernet@f0000 {
 				phy-handle = <&phy10>;
 				phy-connection-type = "xgmii";
@@ -176,22 +160,6 @@
 		};
 
 		fman@500000 {
-			port@88000 { status = "disabled"; };
-			port@a8000 { status = "disabled"; };
-			ethernet@e0000 { status = "disabled"; };
-
-			port@89000 { status = "disabled"; };
-			port@a9000 { status = "disabled"; };
-			ethernet@e2000 { status = "disabled"; };
-
-			port@8a000 { status = "disabled"; };
-			port@aa000 { status = "disabled"; };
-			ethernet@e4000 { status = "disabled"; };
-
-			port@8b000 { status = "disabled"; };
-			port@ab000 { status = "disabled"; };
-			ethernet@e6000 { status = "disabled"; };
-
 			ethernet@f0000 {
 				phy-handle = <&phy11>;
 				phy-connection-type = "xgmii";
@@ -339,3 +307,84 @@
 };
 
 /include/ "p4080si-post.dtsi"
+
+/* All of this just removes devices that we don't have on BT1. For the most
+ * part, this is dTSEC (1g network interfaces, since we have Broadcom). We
+ * could just let the kernel probe all of these, but it skews things like
+ * mac address assignment. */
+/ {
+	aliases {
+		/delete-property/ ethernet0;
+		/delete-property/ ethernet1;
+		/delete-property/ ethernet2;
+		/delete-property/ ethernet3;
+		/delete-property/ ethernet5;
+		/delete-property/ ethernet6;
+		/delete-property/ ethernet7;
+		/delete-property/ ethernet8;
+		/delete-property/ sdhc;
+		/delete-property/ pci2;
+	};
+
+	soc@ffe000000 {
+		fman@400000 {
+			/delete-node/ mdio@e1120;
+			/delete-node/ mdio@e3120;
+			/delete-node/ mdio@e5120;
+			/delete-node/ mdio@e7120;
+
+			port@90000 {
+				compatible = "fsl,fman-v2-port-rx", "fsl,fman-port-10g-rx";
+			};
+		};
+		fman@500000 {
+			/delete-node/ mdio@e1120;
+			/delete-node/ mdio@e3120;
+			/delete-node/ mdio@e5120;
+			/delete-node/ mdio@e7120;
+			/delete-node/ mdio@f1000;
+
+			port@90000 {
+				compatible = "fsl,fman-v2-port-rx", "fsl,fman-port-10g-rx";
+			};
+		};
+
+		/delete-node/ sdhc@114000;
+	};
+
+	/delete-node/ rapidio@ffe0c0000;
+};
+
+/delete-node/ &fman0_rx_0x08;
+/delete-node/ &fman0_tx_0x28;
+/delete-node/ &enet0;
+
+/delete-node/ &fman0_rx_0x09;
+/delete-node/ &fman0_tx_0x29;
+/delete-node/ &enet1;
+
+/delete-node/ &fman0_rx_0x0a;
+/delete-node/ &fman0_tx_0x2a;
+/delete-node/ &enet2;
+
+/delete-node/ &fman0_rx_0x0b;
+/delete-node/ &fman0_tx_0x2b;
+/delete-node/ &enet3;
+
+/delete-node/ &fman1_rx_0x08;
+/delete-node/ &fman1_tx_0x28;
+/delete-node/ &enet5;
+
+/delete-node/ &fman1_rx_0x09;
+/delete-node/ &fman1_tx_0x29;
+/delete-node/ &enet6;
+
+/delete-node/ &fman1_rx_0x0a;
+/delete-node/ &fman1_tx_0x2a;
+/delete-node/ &enet7;
+
+/delete-node/ &fman1_rx_0x0b;
+/delete-node/ &fman1_tx_0x2b;
+/delete-node/ &enet8;
+
+/delete-node/ &pci2;
