@@ -11,8 +11,12 @@ ct1)
 	target="$1"
 	dtb="cts1000"
 	;;
+ct1-fips)
+	target="$1"
+	dtb="cts1000"
+	;;
 *)
-	echo "Pick one of ct1 or bt4" 1>&2
+	echo "Pick one of ct1, ct1-fips or bt4" 1>&2
 	exit 1
 esac
 
@@ -20,7 +24,7 @@ cpus=`getconf _NPROCESSORS_ONLN`
 nway=`echo "($cpus * 15) / 10" | bc`
 dir="`pwd`/build-$target"
 
-MAKEFLAGS="O=$dir -j$nway ARCH=powerpc"
+MAKEFLAGS="O=$dir -j$nway -l$nway ARCH=powerpc"
 
 arch=`uname -m`
 case "`uname -m`" in
