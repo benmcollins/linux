@@ -1,4 +1,5 @@
 #!/bin/bash
+# Build configurations in svy-configs.
 
 target=
 
@@ -15,8 +16,12 @@ ct1-fips)
 	target="$1"
 	dtb="cts1000"
 	;;
+ct1-fw)
+	target="$1"
+	dtb="cts1000"
+	;;
 *)
-	echo "Pick one of ct1, ct1-fips or bt4" 1>&2
+	echo "Pick one of ct1, ct1-fips, ct1-fw or bt4" 1>&2
 	exit 1
 esac
 
@@ -24,7 +29,7 @@ cpus=`getconf _NPROCESSORS_ONLN`
 nway=`echo "($cpus * 15) / 10" | bc`
 dir="`pwd`/build-$target"
 
-MAKEFLAGS="O=$dir -j$nway -l$nway ARCH=powerpc"
+MAKEFLAGS="O=$dir CONCURRENCY_LEVEL=$nway ARCH=powerpc"
 
 arch=`uname -m`
 case "`uname -m`" in
@@ -41,5 +46,25 @@ if ! test -f "$dir/.config"; then
 	cp "svy-configs/$target" "$dir/.config"
 fi
 
-make uImage
-make ${dtb}.dtb
+case "$1" in
+bt4)
+	make uImage
+	make ${dtb}.dtb
+	;;
+ct1)
+	make uImage
+	make ${dtb}.dtb
+	;;
+ct1-fips)
+	make-kpkg clean
+	fakeroot make-kpkg --initrd --revision=1.0.fips kernel_image
+	;;
+ct1-fw)
+	make uImage
+	make ${dtb}.dtb
+	;;
+*)
+	echo "Pick one of ct1, ct1-fips or bt4" 1>&2
+	exit 1
+esac
+
