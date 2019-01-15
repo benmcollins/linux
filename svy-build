@@ -2,7 +2,7 @@
 # Build configurations in svy-configs.
 
 target=
-rev="Cyphre-BTv1-1"
+rev="Cyphre-BTv1-1$(date "+%Y%m%d%H%M%S")"
 
 case "$1" in
 bt4)
@@ -31,8 +31,8 @@ ct1-fips)
 	export KDEB_SOURCENAME=linux-cyphre
 	export KDEB_PKGVERSION=$(git describe)
 	export KBUILD_IMAGE=arch/powerpc/boot/uImage
-	export EMAIL="rick.foos@cyphre.com"
-	export NAME="Rick Foos"
+	export EMAIL="vihar.rai@rignet.com"
+	export NAME="Vihar Rai"
 	target="$1"
 	dtb="cts1000"
 	image=bindeb-pkg
@@ -49,9 +49,9 @@ esac
 
 cpus=`getconf _NPROCESSORS_ONLN`
 nway=`echo "($cpus * 15) / 10" | bc`
-dir="`pwd`/build-$target"
+dir="`pwd`/../build-$target"
 
-MAKEFLAGS="O=$dir CONCURRENCY_LEVEL=$nway ARCH=powerpc EXTRAVERSION=-$rev"
+MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc EXTRAVERSION=-$rev"
 
 arch=`uname -m`
 case "`uname -m`" in
