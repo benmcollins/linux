@@ -29,15 +29,23 @@ ct1-fw)
 	dtb="cts1000"
 	image=uImage
 	;;
-svy-jade-fips|ct1-fips)
-	export KDEB_CHANGELOG_DIST=xenial
-	export KDEB_SOURCENAME=linux-cyphre
-	export KDEB_PKGVERSION=$describe
-	export KBUILD_IMAGE=arch/powerpc/boot/uImage
-	export EMAIL="vihar.rai@rignet.com"
-	export NAME="Vihar Rai"
+svy-jade-fips|ct1-fips-builtin|ct1-fips)
 	target="$1"
-	dtb="cts1000"
+	dtb=""
+	rev=$tstamp
+	image=bindeb-pkg
+	;;
+ct1-fips-qoriq)
+	if ! [ -d ../linux-qoriq ]; then \
+		cd ..
+		git clone https://github.com/qoriq-open-source/linux.git
+		cd -
+	fi
+	cd ../linux-qoriq
+	svytop=../svy_linux
+	target="$1"
+	dtb=""
+	rev=$tstamp
 	image=bindeb-pkg
 	;;
 ct1-fips-linux)
@@ -59,7 +67,7 @@ ct1-fips-fw)
 	image=uImage
 	;;
 *)
-	echo "Pick one of ct1, ct1-fw, ct1-fips, ct1-fips-fw, ct1-fips-linux, svy-jade-fips, or bt4" 1>&2
+	echo "Pick one of ct1, ct1-fw, ct1-fips, ct1-fips-fw, ct1-fips-linux, ct1-fips-builtin svy-jade-fips, or bt4" 1>&2
 	exit 1
 esac
 
@@ -79,7 +87,7 @@ ppc*)
 esac
 
 export MAKEFLAGS
-echo "*** ${MAKEFLAGS}"
+#echo "*** ${MAKEFLAGS}"
 
 if ! test -f "$dir/.config"; then
 	test -d "$dir" || mkdir "$dir"
