@@ -35,10 +35,25 @@ svy-jade-fips|ct1-fips-builtin|ct1-fips)
 	rev=$tstamp
 	image=bindeb-pkg
 	;;
+ct1-fips-yocto)
+	if ! [ -d ../linux-yocto ]; then \
+		cd ..
+		git clone git://git.freescale.com/ppc/sdk/linux.git linux-yocto
+		cd -
+	fi
+	cd ../linux-yocto
+	branch="sdk-v2.0.x"
+	git checkout -b $branch orig/$branch
+	svytop=../svy_linux
+	target="$1"
+	dtb=""
+	rev=$tstamp
+	image=""
+	;;
 ct1-fips-qoriq)
 	if ! [ -d ../linux-qoriq ]; then \
 		cd ..
-		git clone https://github.com/qoriq-open-source/linux.git
+		git clone https://github.com/qoriq-open-source/linux.git linux-qoriq
 		cd -
 	fi
 	cd ../linux-qoriq
