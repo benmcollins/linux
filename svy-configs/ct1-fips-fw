@@ -2319,7 +2319,7 @@ CONFIG_RTC_DRV_CMOS=y
 #
 # Microsoft Hyper-V guest support
 #
-CONFIG_STAGING=y
+# CONFIG_STAGING is not set
 # CONFIG_ET131X is not set
 # CONFIG_USBIP_CORE is not set
 # CONFIG_ECHO is not set

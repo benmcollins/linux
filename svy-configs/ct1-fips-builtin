@@ -2731,7 +2731,7 @@ CONFIG_VIRTIO_MENU=y
 # Microsoft Hyper-V guest support
 #
 # CONFIG_HYPERV_TSCPAGE is not set
-CONFIG_STAGING=y
+# CONFIG_STAGING is not set
 # CONFIG_IRDA is not set
 # CONFIG_IPX is not set
 # CONFIG_NCP_FS is not set

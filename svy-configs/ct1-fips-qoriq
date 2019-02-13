@@ -2608,7 +2608,7 @@ CONFIG_RTC_DRV_DS3232=y
 #
 # Microsoft Hyper-V guest support
 #
-CONFIG_STAGING=y
+# CONFIG_STAGING is not set
 # CONFIG_COMEDI is not set
 # CONFIG_RTS5208 is not set
 # CONFIG_FB_SM750 is not set
