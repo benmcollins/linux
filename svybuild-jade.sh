@@ -1,83 +1,80 @@
 #!/bin/bash
-# Build configurations in svy-configs.
-set +x
-target=
+# Linux configs in svy-configs.
+
+# config filename and build directory suffix.
+target="$1"
+[ -n "$target" ] || target=svy-jade
+
+cpus=$(getconf _NPROCESSORS_ONLN)
+nway=$(echo "($cpus * 15) / 10" | bc)
+export CONCURRENCY_LEVEL=$nway
+
+dir="$(pwd)/../build-$target"
+export MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc"
+
+# @note CAPS not allow when using bindeb-pkg.
+rev="cyphre-btv1-2"
 tstamp=$(date "+%Y%m%d%H%M%S")
-rev="Cyphre-BTv1-1"
-describe=$(git describe)
+# describe=$(git describe)
 svytop=.
 
 case "$1" in
 bt4)
-	target="$1"
 	dtb="t4240mfcs"
 	image=uImage
 	;;
 ct1)
-	export KDEB_CHANGELOG_DIST=xenial
-	export KDEB_SOURCENAME=linux-cyphre
-	export KDEB_PKGVERSION=$describe
-	export KBUILD_IMAGE=arch/powerpc/boot/uImage
-	export EMAIL="ben.collins@rig.net"
-	export NAME="Benjamin Collins"
-	target="$1"
 	dtb="cts1000"
-	image=bindeb-pkg
+	image="uImage"
 	;;
 ct1-fw)
-	target="$1"
 	dtb="cts1000"
 	image=uImage
 	;;
 svy-jade-fips|ct1-fips-builtin|ct1-fips)
-	target="$1"
 	dtb=""
 	rev=$tstamp
 	image=bindeb-pkg
 	;;
 ct1-fips-yocto)
 	if ! [ -d ../linux-yocto ]; then \
-		cd ..
+		pushd ..
 		git clone git://git.freescale.com/ppc/sdk/linux.git linux-yocto
-		cd -
+		popd -
 	fi
 	cd ../linux-yocto
 	branch="sdk-v2.0.x"
 	git checkout -b $branch orig/$branch
 	svytop=../svy_linux
-	target="$1"
 	dtb=""
 	rev=$tstamp
 	image=""
 	;;
 ct1-fips-qoriq)
 	if ! [ -d ../linux-qoriq ]; then \
-		cd ..
+		pushd ..
 		git clone https://github.com/qoriq-open-source/linux.git linux-qoriq
-		cd -
+		popd
 	fi
 	cd ../linux-qoriq
 	svytop=../svy_linux
-	target="$1"
 	dtb=""
 	rev=$tstamp
 	image=bindeb-pkg
 	;;
 ct1-fips-linux)
 	if ! [ -d ../linux ]; then \
-		cd ..
+		pushd ..
 		git clone https://github.com/torvalds/linux.git
-		cd -
+		popd
 	fi
 	cd ../linux
 	svytop=../svy_linux
-	target="$1"
 	dtb=""
 	rev=$tstamp
 	image=bindeb-pkg
 	;;
 ct1-fips-fw)
-	target="$1"
 	dtb="cts1000"
 	image=uImage
 	;;
@@ -86,22 +83,29 @@ ct1-fips-fw)
 	exit 1
 esac
 
-cpus=$(getconf _NPROCESSORS_ONLN)
-nway=$(echo "($cpus * 15) / 10" | bc)
-dir="$(pwd)/../build-$target"
-export CONCURRENCY_LEVEL=$nway
-
-MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc EXTRAVERSION=-$rev "
+# Set final extraversion.
+export MAKEFLAGS="$MAKEFLAGS EXTRAVERSION=-$rev "
 
 arch=$(uname -m)
 case "$arch" in
-ppc*)
+arm*|ppc*)
         ;;
 *)
-        MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=powerpc-linux-gnu- "
+	# TODO: Add arm, CROSS_COMPILE determined by target above.
+	CROSS_COMPILE="powerpc-linux-gnu-"
+	# Cross compiling with NXP tools?
+	if [ -d /opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/x86_64-fsl_networking_sdk-linux ]; then
+		rootdir="/opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/x86_64-fsl_networking_sdk-linux"
+	elif [ -d /opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/i686-fsl_networking_sdk-linux ]; then
+		rootdir="/opt/fsl-networking/QorIQ-SDK-V1.4/sysroots/i686-fsl_networking_sdk-linux"
+	fi
+	if [ -n "$rootdir" ]; then
+		 export PATH="$PATH:$rootdir/usr/bin/ppce500mc-fsl_networking-linux"
+		 CROSS_COMPILE="powerpc-fsl_networking-linux-"
+	fi
+	export MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=${CROSS_COMPILE} "
 esac
 
-export MAKEFLAGS
 #echo "*** ${MAKEFLAGS}"
 
 if ! test -f "$dir/.config"; then
