@@ -1,6 +1,9 @@
 #!/bin/bash
 # Linux configs in svy-configs.
 
+#debug
+set +x
+
 # config filename and build directory suffix.
 target="$1"
 [ -n "$target" ] || target=svy-jade
@@ -15,7 +18,7 @@ export MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc"
 # @note CAPS not allow when using bindeb-pkg.
 rev="cyphre-btv1-2"
 tstamp=$(date "+%Y%m%d%H%M%S")
-# describe=$(git describe)
+describe=$(git describe)
 svytop=.
 
 case "$1" in
@@ -32,8 +35,9 @@ ct1-fw)
 	image=uImage
 	;;
 svy-jade-fips|ct1-fips-builtin|ct1-fips)
-	dtb=""
-	rev=$tstamp
+	#export KDEB_PKGVERSION=$describe
+	dtb="cts1000"
+	rev=""
 	image=bindeb-pkg
 	;;
 ct1-fips-yocto)
@@ -85,7 +89,7 @@ ct1-fips-fw)
 esac
 
 # Set final extraversion.
-export MAKEFLAGS="$MAKEFLAGS EXTRAVERSION=-$rev "
+#export MAKEFLAGS="$MAKEFLAGS EXTRAVERSION=-$rev "
 
 arch=$(uname -m)
 case "$arch" in
