@@ -212,6 +212,37 @@ EOF
 	chmod 755 "$tmpdir/DEBIAN/$script"
 done
 
+# All CAAM must be built as modules or builtin, single test works.
+if grep -q '^CONFIG_CRYPTO_DEV_FSL_CAAM=m' "$KCONFIG_CONFIG"; then
+cat <<EOF > "$tmpdir/etc/kernel/postinst.d/caam.conf"
+# Manual load of caam drivers.
+caam
+caam_jr
+caamalg_desc
+caamalg
+caamalg_qi
+caamhash
+caamrng
+caam_pkc
+caam_prf
+cryptodev
+EOF
+chmod 644 "$tmpdir/etc/kernel/postinst.d/caam.conf"
+cat <<EOF > "$tmpdir/etc/kernel/postinst.d/caam"
+#!/bin/sh
+# copy caam.conf to module-load.
+cp /etc/kernel/postinst.d/caam.conf /etc/modules-load.d/.
+EOF
+chmod 755 "$tmpdir/etc/kernel/postinst.d/caam"
+cat <<EOF > "$tmpdir/etc/kernel/postrm.d/caam"
+#!/bin/sh
+# remove on kernel remove, 
+# maybe need version check in case multiple kernels.
+rm -f /etc/modules-load.d/caam.conf
+EOF
+chmod 755 "$tmpdir/etc/kernel/postrm.d/caam"
+fi
+
 # Try to determine maintainer and email values
 if [ -n "$DEBEMAIL" ]; then
        email=$DEBEMAIL

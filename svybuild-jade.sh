@@ -73,6 +73,7 @@ ct1-fips-linux)
 	dtb=""
 	rev=$tstamp
 	image=bindeb-pkg
+	prepare="prepare"
 	;;
 ct1-fips-fw)
 	dtb="cts1000"
@@ -106,12 +107,12 @@ arm*|ppc*)
 	export MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=${CROSS_COMPILE} "
 esac
 
-#echo "*** ${MAKEFLAGS}"
+echo "*** ${MAKEFLAGS}"
 
 if ! test -f "$dir/.config"; then
-	test -d "$dir" || mkdir "$dir"
+	test -d "$dir" || mkdir -p "$dir"
 	cp "$svytop/svy-configs/$target" "$dir/.config"
 fi
-
+[ -n "${prepare}" ] && make prepare
 make $image
 [ -n "${dtb}" ] &&  make ${dtb}.dtb
