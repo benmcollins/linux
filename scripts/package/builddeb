@@ -13,7 +13,7 @@
 set -e
 
 create_package() {
-	local pname="$1" pdir="$2"
+	local pname="$1" pdir="$2" ver="$3"
 
 	mkdir -m 755 -p "$pdir/DEBIAN"
 	mkdir -p "$pdir/usr/share/doc/$pname"
@@ -31,8 +31,12 @@ create_package() {
 
 	# Create the package
 	#dpkg-gencontrol $forcearch -Vkernel:debarch="${debarch}" -p$pname -P"$pdir"
-	dpkg-gencontrol -p$pname -P"$pdir"
+	dpkg-gencontrol -p"$pname" -P"$pdir"
 	dpkg --build "$pdir" ..
+	# Hack, -n option doesnt work here.
+	if [ -e "../${pname}_${ver}_${debarch}.deb" ]; then
+	mv "../${pname}_${ver}_${debarch}.deb" "../${pname}_${debarch}.deb"
+	fi
 }
 
 set_debarch() {
@@ -89,7 +93,7 @@ revision=$(cat .version)
 if [ -n "$KDEB_PKGVERSION" ]; then
 	packageversion=$KDEB_PKGVERSION
 else
-	packageversion=$version-$revision
+	packageversion=$version #-$revision
 fi
 sourcename=$KDEB_SOURCENAME
 tmpdir="$objtree/debian/tmp"
@@ -98,8 +102,8 @@ libc_headers_dir="$objtree/debian/headertmp"
 dbg_dir="$objtree/debian/dbgtmp"
 packagename=linux-image-$version
 kernel_headers_packagename=linux-headers-$version
-libc_headers_packagename=linux-libc-dev
-dbg_packagename=$packagename-dbg
+libc_headers_packagename=linux-libc-dev-$version
+dbg_packagename=$packagename-dbg-$version
 debarch=
 forcearch=
 set_debarch
@@ -249,6 +253,8 @@ if [ -n "$DEBEMAIL" ]; then
        email=$DEBEMAIL
 elif [ -n "$EMAIL" ]; then
        email=$EMAIL
+elif [ -n "$(git config --get user.email)" ]; then
+       email="$(git config --get user.email)"
 else
        email=$(id -nu)@$(hostname -f 2>/dev/null || hostname)
 fi
@@ -256,6 +262,8 @@ if [ -n "$DEBFULLNAME" ]; then
        name=$DEBFULLNAME
 elif [ -n "$NAME" ]; then
        name=$NAME
+elif [ -n "$(git config --get user.name)" ]; then
+       name="$(git config --get user.name)"
 else
        name="Anonymous"
 fi
@@ -385,11 +393,11 @@ Description: Linux support headers for userspace development
 EOF
 
 if [ "$ARCH" != "um" ]; then
-	create_package "$kernel_headers_packagename" "$kernel_headers_dir"
-	create_package "$libc_headers_packagename" "$libc_headers_dir"
+	create_package "$kernel_headers_packagename" "$kernel_headers_dir" "$version"
+	create_package "$libc_headers_packagename" "$libc_headers_dir" "$version"
 fi
 
-create_package "$packagename" "$tmpdir"
+create_package "$packagename" "$tmpdir" "$version"
 
 if [ -n "$BUILD_DEBUG" ] ; then
 	# Build debug package
@@ -413,7 +421,7 @@ Description: Linux kernel debugging symbols for $version
  all the necessary debug symbols for the kernel and its modules.
 EOF
 
-	create_package "$dbg_packagename" "$dbg_dir"
+	create_package "$dbg_packagename" "$dbg_dir" "$version"
 fi
 
 if [ "x$1" = "xdeb-pkg" ]

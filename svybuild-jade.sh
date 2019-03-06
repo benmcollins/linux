@@ -15,7 +15,7 @@ export CONCURRENCY_LEVEL=$nway
 dir="$(pwd)/../build-$target"
 export MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc"
 
-# @note CAPS not allow when using bindeb-pkg.
+# @note CAPS not allowed when using bindeb-pkg.
 rev="cyphre-btv1-2"
 tstamp=$(date "+%Y%m%d%H%M%S")
 describe=$(git describe)
@@ -35,7 +35,6 @@ ct1-fw)
 	image=uImage
 	;;
 svy-jade-fips|ct1-fips-builtin|ct1-fips)
-	#export KDEB_PKGVERSION=$describe
 	dtb="cts1000"
 	rev=""
 	image=bindeb-pkg
