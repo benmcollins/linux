@@ -8,12 +8,18 @@ set +x
 target="$1"
 [ -n "$target" ] || target=svy-jade
 
+# take into account compiler mem usage * number of instances.
+mem=$(free -b | awk '/Mem:/{print $2}')
+# get the number of CPU's.
 cpus=$(getconf _NPROCESSORS_ONLN)
-nway=$(echo "($cpus * 15) / 10" | bc)
+# Number of compiler tasks.
+#nway=$(echo "($cpus * 15) / 10" | bc)
+nway=${cpus}
+# Some kernels use this for -l.
 export CONCURRENCY_LEVEL=$nway
 
 dir="$(pwd)/../build-$target"
-export MAKEFLAGS="O=$dir -j$nway -l$nway V=1 ARCH=powerpc"
+export MAKEFLAGS="O=$dir -j$cpus -l$nway V=1 "
 
 # @note CAPS not allowed when using bindeb-pkg.
 rev="cyphre-btv1-2"
@@ -25,19 +31,23 @@ case "$1" in
 bt4)
 	dtb="t4240mfcs"
 	image=uImage
+	ARCH=powerpc
 	;;
 ct1)
 	dtb="cts1000"
 	image="uImage"
+	ARCH=powerpc
 	;;
 ct1-fw)
 	dtb="cts1000"
 	image=uImage
+	ARCH=powerpc
 	;;
 svy-jade-fips|ct1-fips-builtin|ct1-fips)
 	dtb="cts1000"
 	rev=""
 	image=bindeb-pkg
+	ARCH=powerpc
 	;;
 ct1-fips-yocto)
 	if ! [ -d ../linux-yocto ]; then \
@@ -52,6 +62,7 @@ ct1-fips-yocto)
 	dtb=""
 	rev=$tstamp
 	image=""
+	ARCH=powerpc
 	;;
 ct1-fips-qoriq)
 	if ! [ -d ../linux-qoriq ]; then \
@@ -64,6 +75,7 @@ ct1-fips-qoriq)
 	dtb=""
 	rev=$tstamp
 	image=bindeb-pkg
+	ARCH=powerpc
 	;;
 ct1-fips-linux)
 	if ! [ -d ../linux ]; then \
@@ -77,13 +89,21 @@ ct1-fips-linux)
 	rev=$tstamp
 	image=bindeb-pkg
 	prepare="prepare"
+	ARCH=powerpc
 	;;
 ct1-fips-fw)
 	dtb="cts1000"
 	image=uImage
+    ARCH=powerpc
+	;;
+ct2-x86)
+	rev=$tstamp
+	image=bindeb-pkg
+	prepare="prepare"
+	ARCH=x86_64
 	;;
 *)
-	echo "Pick one of ct1, ct1-fw, ct1-fips, ct1-fips-fw, ct1-fips-linux, ct1-fips-builtin svy-jade-fips, or bt4" 1>&2
+	echo "Pick one of ct1, ct1-fw, ct1-fips, ct1-fips-fw, ct1-fips-linux, ct1-fips-builtin svy-jade-fips, ct2-x86, or bt4" 1>&2
 	exit 1
 esac
 
@@ -91,8 +111,9 @@ esac
 #export MAKEFLAGS="$MAKEFLAGS EXTRAVERSION=-$rev "
 
 arch=$(uname -m)
-case "$arch" in
-arm*|ppc*)
+[ -n "$tarch" ] || tarch=$arch
+case "$tarch" in
+arm*|ppc*|x86_64)
         ;;
 *)
 	# TODO: Add arm, CROSS_COMPILE determined by target above.
@@ -109,6 +130,12 @@ arm*|ppc*)
 	fi
 	export MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=${CROSS_COMPILE} "
 esac
+
+# Set by upper logic for now.
+#export MAKEFLAGS="${MAKEFLAGS} ARCH=${ARCH} "
+
+LOCALVERSION="-cyphre${LOCALVERSION}"
+export MAKEFLAGS="${MAKEFLAGS} LOCALVERSION=${LOCALVERSION} "
 
 echo "*** ${MAKEFLAGS}"
 

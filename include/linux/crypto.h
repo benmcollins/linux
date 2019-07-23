@@ -689,6 +689,7 @@ struct pkc_alg {
 #define cra_blkcipher	cra_u.blkcipher
 #define cra_cipher	cra_u.cipher
 #define cra_compress	cra_u.compress
+#define cra_pkc         cra_u.pkc
 
 /**
  * struct crypto_alg - definition of a cryptograpic cipher algorithm
@@ -907,6 +908,7 @@ struct pkc_tfm {
 #define crt_blkcipher	crt_u.blkcipher
 #define crt_cipher	crt_u.cipher
 #define crt_compress	crt_u.compress
+#define crt_pkc         crt_u.pkc
 
 struct crypto_tfm {
 

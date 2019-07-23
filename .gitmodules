@@ -1,0 +1,4 @@
+[submodule "drivers/staging/skmm-host"]
+	path = drivers/staging/skmm-host
+	url = git@github.com:cyphre-llc/skmm-host.git
+	branch = sdk-v2.0.x-linux-4.x

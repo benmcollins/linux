@@ -53,3 +53,4 @@ obj-$(CONFIG_CRYPTO_DEV_CCREE)	+= ccree/
 obj-$(CONFIG_DRM_VBOXVIDEO)	+= vboxvideo/
 obj-$(CONFIG_PI433)		+= pi433/
 obj-$(CONFIG_CRYPTODEV)		+= cryptodev/
+obj-$(CONFIG_FSL_C2X0_CRYPTO_DRV)	+= skmm-host/
