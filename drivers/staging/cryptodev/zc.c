@@ -37,6 +37,7 @@
 #include <linux/scatterlist.h>
 #include "cryptodev_int.h"
 #include "zc.h"
+#include "version.h"
 
 /* Helper functions to assist zero copy.
  * This needs to be redesigned and moved out of the session. --nmav
@@ -59,9 +60,12 @@ int __get_userbuf(uint8_t __user *addr, uint32_t len, int write,
 	}
 
 	down_read(&mm->mmap_sem);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
 	ret = get_user_pages(task, mm,
 			(unsigned long)addr, pgcount, write, 0, pg, NULL);
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+	ret = get_user_pages(task, mm,
+			(unsigned long)addr, pgcount, write, pg, NULL);
 #elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0))
 	ret = get_user_pages_remote(task, mm,
 			(unsigned long)addr, pgcount, write, 0, pg, NULL);
@@ -131,8 +135,11 @@ void release_user_pages(struct csession *ses)
 			flush_dcache_page(ses->pages[i]);
 		else
 			ses->readonly_pages--;
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+		page_cache_release(ses->pages[i]);
+#else
 		put_page(ses->pages[i]);
+#endif
 	}
 	ses->used_pages = 0;
 }

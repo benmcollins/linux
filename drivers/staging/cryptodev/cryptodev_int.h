@@ -106,6 +106,7 @@ struct compat_crypt_auth_op {
 	uint16_t	op;		/* COP_ENCRYPT or COP_DECRYPT */
 	uint16_t	flags;		/* see COP_FLAG_AEAD_* */
 	uint32_t	len;		/* length of source data */
+	uint32_t	dst_len;	/* length of result data */
 	uint32_t	auth_len;	/* length of auth data */
 	compat_uptr_t	auth_src;	/* authenticated-only data */
 
@@ -129,6 +130,7 @@ struct compat_crypt_auth_op {
 	compat_uptr_t	iv;
 	uint32_t	iv_len;
 };
+
 struct compat_prf_secret {
 	int black_key; /* 0/1 if i/p or o/p is
 			   in black(encrypted) form or plain data */

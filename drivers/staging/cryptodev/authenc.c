@@ -46,6 +46,7 @@
 #include "zc.h"
 #include "util.h"
 #include "cryptlib.h"
+#include "version.h"
 
 
 /* make caop->dst available in scatterlist.
@@ -62,7 +63,7 @@ static int get_userbuf_tls(struct csession *ses, struct kernel_crypt_auth_op *kc
 		return -EINVAL;
 
 	if (ses->alignmask) {
-		if (!IS_ALIGNED((unsigned long)caop->dst, ses->alignmask))
+		if (!IS_ALIGNED((unsigned long)caop->dst, ses->alignmask + 1))
 			dwarning(2, "careful - source address %p is not %d byte aligned",
 					caop->dst, ses->alignmask + 1);
 	}
@@ -116,10 +117,10 @@ static int get_userbuf_srtp(struct csession *ses, struct kernel_crypt_auth_op *k
 	}
 
 	if (ses->alignmask) {
-		if (!IS_ALIGNED((unsigned long)caop->dst, ses->alignmask))
+		if (!IS_ALIGNED((unsigned long)caop->dst, ses->alignmask + 1))
 			dwarning(2, "careful - source address %p is not %d byte aligned",
 					caop->dst, ses->alignmask + 1);
-		if (!IS_ALIGNED((unsigned long)caop->auth_src, ses->alignmask))
+		if (!IS_ALIGNED((unsigned long)caop->auth_src, ses->alignmask + 1))
 			dwarning(2, "careful - source address %p is not %d byte aligned",
 					caop->auth_src, ses->alignmask + 1);
 	}
@@ -283,6 +284,7 @@ compat_to_crypt_auth_op(struct compat_crypt_auth_op *compat,
 	caop->op = compat->op;
 	caop->flags = compat->flags;
 	caop->len = compat->len;
+	caop->dst_len = compat->dst_len;
 	caop->auth_len = compat->auth_len;
 	caop->tag_len = compat->tag_len;
 	caop->iv_len = compat->iv_len;
@@ -302,6 +304,7 @@ crypt_auth_op_to_compat(struct crypt_auth_op *caop,
 	compat->op = caop->op;
 	compat->flags = caop->flags;
 	compat->len = caop->len;
+	compat->dst_len = caop->dst_len;
 	compat->auth_len = caop->auth_len;
 	compat->tag_len = caop->tag_len;
 	compat->iv_len = caop->iv_len;

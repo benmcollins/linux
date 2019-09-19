@@ -48,6 +48,7 @@
 #include "cryptodev_int.h"
 #include "zc.h"
 #include "cryptlib.h"
+#include "version.h"
 
 /* This file contains the traditional operations of encryption
  * and hashing of /dev/crypto.

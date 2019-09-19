@@ -24,6 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <linux/crypto.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/ioctl.h>
@@ -39,7 +40,9 @@
 #include "cryptodev_int.h"
 #include "cipherapi.h"
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 extern const struct crypto_type crypto_givcipher_type;
+#endif
 
 static void cryptodev_complete(struct crypto_async_request *req, int err)
 {
@@ -158,8 +161,11 @@ int cryptodev_cipher_init(struct cipher_data *out, const char *alg_name,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0))
 		tfm = crypto_skcipher_tfm(out->async.s);
-		if ((tfm->__crt_alg->cra_type == &crypto_ablkcipher_type) ||
-		    (tfm->__crt_alg->cra_type == &crypto_givcipher_type)) {
+		if ((tfm->__crt_alg->cra_type == &crypto_ablkcipher_type)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
+		    || (tfm->__crt_alg->cra_type == &crypto_givcipher_type)
+#endif
+							) {
 			struct ablkcipher_alg *alg;
 
 			alg = &tfm->__crt_alg->cra_ablkcipher;
@@ -273,6 +279,7 @@ static inline int waitfor(struct cryptodev_result *cr, ssize_t ret)
 	case 0:
 		break;
 	case -EINPROGRESS:
+	case -EBUSY:
 		wait_for_completion(&cr->completion);
 		/* At this point we known for sure the request has finished,
 		 * because wait_for_completion above was not interruptible.
@@ -432,19 +439,113 @@ int cryptodev_hash_final(struct hash_data *hdata, void *output)
 	return waitfor(&hdata->async.result, ret);
 }
 
-int cryptodev_pkc_offload(struct cryptodev_pkc *pkc)
+
+int cryptodev_pkc_offload(struct cryptodev_pkc  *pkc)
 {
-	int ret;
+	int ret = 0;
+	struct pkc_request *pkc_requested;
+
+	switch (pkc->req->type) {
+	case RSA_KEYGEN:
+	case RSA_PUB:
+	case RSA_PRIV_FORM1:
+	case RSA_PRIV_FORM2:
+	case RSA_PRIV_FORM3:
+		pkc->s = crypto_alloc_pkc("pkc(rsa)",
+			 CRYPTO_ALG_TYPE_PKC_RSA, 0);
+		break;
+	case DSA_SIGN:
+	case DSA_VERIFY:
+	case ECDSA_SIGN:
+	case ECDSA_VERIFY:
+	case DLC_KEYGEN:
+	case ECC_KEYGEN:
+		pkc->s = crypto_alloc_pkc("pkc(dsa)",
+			 CRYPTO_ALG_TYPE_PKC_DSA, 0);
+		break;
+	case DH_COMPUTE_KEY:
+	case ECDH_COMPUTE_KEY:
+		pkc->s = crypto_alloc_pkc("pkc(dh)",
+			 CRYPTO_ALG_TYPE_PKC_DH, 0);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (IS_ERR_OR_NULL(pkc->s))
+		return -EINVAL;
 
 	init_completion(&pkc->result.completion);
-	pkc_request_set_callback(pkc->req, 0, cryptodev_complete_asym, pkc);
-	ret = crypto_pkc_op(pkc->req);
+	pkc_requested = pkc_request_alloc(pkc->s, GFP_KERNEL);
+
+	if (unlikely(IS_ERR_OR_NULL(pkc_requested))) {
+		ret = -ENOMEM;
+		goto error;
+	}
+	pkc_requested->type = pkc->req->type;
+	pkc_requested->curve_type = pkc->req->curve_type;
+	memcpy(&pkc_requested->req_u, &pkc->req->req_u, sizeof(pkc->req->req_u));
+	pkc_request_set_callback(pkc_requested, CRYPTO_TFM_REQ_MAY_BACKLOG,
+				 cryptodev_complete_asym, pkc);
+	ret = crypto_pkc_op(pkc_requested);
 	if (ret != -EINPROGRESS && ret != 0)
-		return ret;
+		goto error2;
 
 	if (pkc->type == SYNCHRONOUS)
 		ret = waitfor(&pkc->result, ret);
 
 	return ret;
-
+error2:
+	kfree(pkc_requested);
+error:
+	crypto_free_pkc(pkc->s);
+	return ret;
 }
+
+#ifdef CIOCCPHASH
+/* import the current hash state of src to dst */
+int cryptodev_hash_copy(struct hash_data *dst, struct hash_data *src)
+{
+	int ret, statesize;
+	void *statedata = NULL;
+	struct crypto_tfm *tfm;
+
+	if (unlikely(src == NULL || dst == NULL)) {
+		return -EINVAL;
+	}
+
+	reinit_completion(&src->async.result.completion);
+
+	statesize = crypto_ahash_statesize(src->async.s);
+	if (unlikely(statesize <= 0)) {
+		return -EINVAL;
+	}
+
+	statedata = kzalloc(statesize, GFP_KERNEL);
+	if (unlikely(statedata == NULL)) {
+		return -ENOMEM;
+	}
+
+	ret = crypto_ahash_export(src->async.request, statedata);
+	if (unlikely(ret < 0)) {
+		if (unlikely(ret == -ENOSYS)) {
+			tfm = crypto_ahash_tfm(src->async.s);
+			derr(0, "cryptodev_hash_copy: crypto_ahash_export not implemented for "
+				"alg='%s', driver='%s'", crypto_tfm_alg_name(tfm),
+				crypto_tfm_alg_driver_name(tfm));
+		}
+		goto out;
+	}
+
+	ret = crypto_ahash_import(dst->async.request, statedata);
+	if (unlikely(ret == -ENOSYS)) {
+		tfm = crypto_ahash_tfm(dst->async.s);
+		derr(0, "cryptodev_hash_copy: crypto_ahash_import not implemented for "
+			"alg='%s', driver='%s'", crypto_tfm_alg_name(tfm),
+			crypto_tfm_alg_driver_name(tfm));
+	}
+out:
+	kfree(statedata);
+	return ret;
+}
+#endif /* CIOCCPHASH */

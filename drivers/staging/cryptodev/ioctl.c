@@ -35,6 +35,7 @@
  */
 
 #include <crypto/hash.h>
+#include <linux/crypto.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/ioctl.h>
@@ -52,6 +53,7 @@
 
 #include "cryptodev_int.h"
 #include "zc.h"
+#include "version.h"
 #include "cipherapi.h"
 
 MODULE_AUTHOR("Nikos Mavrogiannopoulos <nmav@gnutls.org>");
@@ -116,6 +118,8 @@ void cryptodev_complete_asym(struct crypto_async_request *req, int err)
 		/* wake for POLLIN */
 		wake_up_interruptible(&pcr->user_waiter);
 	}
+
+	kfree(req);
 }
 
 #define FILL_SG(sg, ptr, len)					\
@@ -138,6 +142,19 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	const char *alg_name = NULL;
 	const char *hash_name = NULL;
 	int hmac_mode = 1, stream = 0, aead = 0;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+	/*
+	 * With composite aead ciphers, only ckey is used and it can cover all the
+	 * structure space; otherwise both keys may be used simultaneously but they
+	 * are confined to their spaces
+	 */
+	struct {
+		uint8_t ckey[CRYPTO_CIPHER_MAX_KEY_LEN];
+		uint8_t mkey[CRYPTO_HMAC_MAX_KEY_LEN];
+		/* padding space for aead keys */
+		uint8_t pad[RTA_SPACE(sizeof(struct crypto_authenc_key_param))];
+	} keys;
+#endif
 
 	/* Does the request make sense? */
 	if (unlikely(!sop->cipher && !sop->mac)) {
@@ -300,7 +317,9 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	/* Set-up crypto transform. */
 	if (alg_name) {
 		unsigned int keylen;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 		uint8_t *ckey;
+#endif
 
 		ret = cryptodev_get_cipher_keylen(&keylen, sop, aead);
 		if (unlikely(ret < 0)) {
@@ -309,6 +328,20 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 			goto session_error;
 		}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		ret = cryptodev_get_cipher_key(keys.ckey, sop, aead);
+		if (unlikely(ret < 0)) {
+			goto session_error;
+		}
+
+		ret = cryptodev_cipher_init(&ses_new->cdata, alg_name, keys.ckey,
+						keylen, stream, aead);
+		if (ret < 0) {
+			ddebug(1, "Failed to load cipher for %s", alg_name);
+			ret = -EINVAL;
+			goto session_error;
+		}
+#else
 		ckey = kmalloc(CRYPTO_CIPHER_MAX_KEY_LEN + CRYPTO_HMAC_MAX_KEY_LEN +
 			       RTA_SPACE(sizeof(struct crypto_authenc_key_param)), GFP_DMA);
 		if (unlikely(!ckey)) {
@@ -330,9 +363,32 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 			ret = -EINVAL;
 			goto session_error;
 		}
+#endif
 	}
 
 	if (hash_name && aead == 0) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		if (unlikely(sop->mackeylen > CRYPTO_HMAC_MAX_KEY_LEN)) {
+			ddebug(1, "Setting key failed for %s-%zu.",
+				hash_name, (size_t)sop->mackeylen*8);
+			ret = -EINVAL;
+			goto session_error;
+		}
+
+		if (sop->mackey && unlikely(copy_from_user(keys.mkey,
+			sop->mackey, sop->mackeylen))) {
+			ret = -EFAULT;
+			goto session_error;
+		}
+
+		ret = cryptodev_hash_init(&ses_new->hdata, hash_name, hmac_mode,
+			keys.mkey, sop->mackeylen);
+		if (ret != 0) {
+			ddebug(1, "Failed to load hash for %s", hash_name);
+			ret = -EINVAL;
+			goto session_error;
+		}
+#else
 		uint8_t *mkey = kmalloc(CRYPTO_HMAC_MAX_KEY_LEN, GFP_DMA);
 
 		if (unlikely(!mkey)) {
@@ -363,6 +419,7 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 			ret = -EINVAL;
 			goto session_error;
 		}
+#endif
 
 		ret = cryptodev_hash_reset(&ses_new->hdata);
 		if (ret != 0) {
@@ -381,6 +438,7 @@ crypto_create_session(struct fcrypt *fcr, struct session_op *sop)
 	ses_new->sg = kzalloc(ses_new->array_size *
 			sizeof(struct scatterlist), GFP_KERNEL);
 	if (ses_new->sg == NULL || ses_new->pages == NULL) {
+		ddebug(0, "Memory error");
 		ret = -ENOMEM;
 		goto session_error;
 	}
@@ -421,6 +479,7 @@ session_error:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static inline void hash_destroy_session(struct csession *ses_ptr)
 {
 	cryptodev_hash_deinit(&ses_ptr->hdata);
@@ -546,9 +605,9 @@ error_hash:
 	hash_destroy_session(ses);
 	return ret;
 }
+#endif
 
-
-/* Everything that needs to be done when remowing a session. */
+/* Everything that needs to be done when removing a session. */
 static inline void
 crypto_destroy_session(struct csession *ses_ptr)
 {
@@ -634,6 +693,34 @@ crypto_get_session_by_sid(struct fcrypt *fcr, uint32_t sid)
 
 	return retval;
 }
+
+#ifdef CIOCCPHASH
+/* Copy the hash state from one session to another */
+static int
+crypto_copy_hash_state(struct fcrypt *fcr, uint32_t dst_sid, uint32_t src_sid)
+{
+	struct csession *src_ses, *dst_ses;
+	int ret;
+
+	src_ses = crypto_get_session_by_sid(fcr, src_sid);
+	if (unlikely(src_ses == NULL)) {
+		derr(1, "Session with sid=0x%08X not found!", src_sid);
+		return -ENOENT;
+	}
+
+	dst_ses = crypto_get_session_by_sid(fcr, dst_sid);
+	if (unlikely(dst_ses == NULL)) {
+		derr(1, "Session with sid=0x%08X not found!", dst_sid);
+		crypto_put_session(src_ses);
+		return -ENOENT;
+	}
+
+	ret = cryptodev_hash_copy(&dst_ses->hdata, &src_ses->hdata);
+	crypto_put_session(src_ses);
+	crypto_put_session(dst_ses);
+	return ret;
+}
+#endif /* CIOCCPHASH */
 
 static void cryptask_routine(struct work_struct *work)
 {
@@ -766,7 +853,11 @@ static int
 clonefd(struct file *filp)
 {
 	int ret;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+	ret = get_unused_fd();
+#else
 	ret = get_unused_fd_flags(0);
+#endif
 	if (ret >= 0) {
 			get_file(filp);
 			fd_install(ret, filp);
@@ -997,6 +1088,18 @@ static int kop_from_user(struct kernel_crypt_kop *kop,
 	return fill_kop_from_cop(kop);
 }
 
+#if 0 /* Unused. */
+static int kop_to_user(struct kernel_crypt_kop *kop,
+			void __user *arg)
+{
+	if (unlikely(copy_to_user(arg, &kop->kop, sizeof(kop->kop)))) {
+		dprintk(1, KERN_ERR, "Cannot copy to userspace\n");
+		return -EFAULT;
+	}
+	return 0;
+}
+#endif
+
 static int kcop_from_user(struct kernel_crypt_op *kcop,
 			struct fcrypt *fcr, void __user *arg)
 {
@@ -1075,7 +1178,11 @@ static int get_session_info(struct fcrypt *fcr, struct session_info_op *siop)
 
 	if (ses_ptr->cdata.init) {
 		if (ses_ptr->cdata.aead == 0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+			tfm = crypto_ablkcipher_tfm(ses_ptr->cdata.async.s);
+#else
 			tfm = cryptodev_crypto_blkcipher_tfm(ses_ptr->cdata.async.s);
+#endif
 		else
 			tfm = crypto_aead_tfm(ses_ptr->cdata.async.as);
 		tfm_info_to_alg_info(&siop->cipher_info, tfm);
@@ -1105,6 +1212,7 @@ static int get_session_info(struct fcrypt *fcr, struct session_info_op *siop)
 	return 0;
 }
 
+#ifdef CONFIG_CAAM_PRF
 static void prf_req_free(struct prf_req_s **__req)
 {
 	struct prf_req_s *req = *__req;
@@ -1553,6 +1661,7 @@ static int prf_cop_to_user(struct prf_param *prfiop, struct prf_req_s *req)
 #undef DUMP
 	return ret;
 }
+#endif /* CONFIG_CAAM_PRF */
 
 static long
 cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
@@ -1560,12 +1669,19 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	void __user *arg = (void __user *)arg_;
 	int __user *p = arg;
 	struct session_op sop;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+	struct kernel_crypt_op kcop;
+#else
 	struct kernel_hash_op khop;
 	struct kernel_crypt_op *kcop;
+#endif
 	struct kernel_crypt_auth_op kcaop;
 	struct crypt_priv *pcr = filp->private_data;
 	struct fcrypt *fcr;
 	struct session_info_op siop;
+#ifdef CIOCCPHASH
+	struct cphash_op cphop;
+#endif
 	uint32_t ses;
 	int ret = 0, fd;
 
@@ -1576,6 +1692,12 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 
 	switch (cmd) {
 	case CIOCASYMFEAT:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		return put_user(CRF_MOD_EXP_CRT |  CRF_MOD_EXP | CRF_DSA_SIGN |
+			CRF_DSA_VERIFY | CRF_DH_COMPUTE_KEY |
+			CRF_DSA_GENERATE_KEY | CRF_DH_GENERATE_KEY |
+			CRF_RSA_GENERATE_KEY, p);
+#else
 		ses = 0;
 		if (crypto_has_alg("pkc(rsa)", 0, 0))
 			ses = CRF_MOD_EXP_CRT |	CRF_MOD_EXP | CRF_RSA_GENERATE_KEY;
@@ -1584,11 +1706,16 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		if (crypto_has_alg("pkc(dh)", 0, 0))
 			ses |= CRF_DH_COMPUTE_KEY |CRF_DH_GENERATE_KEY;
 		return put_user(ses, p);
+#endif
 	case CRIOGET:
 		fd = clonefd(filp);
 		ret = put_user(fd, p);
 		if (unlikely(ret)) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
 			sys_close(fd);
+#else
+			ksys_close(fd);
+#endif
 			return ret;
 		}
 		return ret;
@@ -1619,6 +1746,13 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		if (unlikely(ret))
 			return ret;
 		return copy_to_user(arg, &siop, sizeof(siop));
+#ifdef CIOCCPHASH
+	case CIOCCPHASH:
+		if (unlikely(copy_from_user(&cphop, arg, sizeof(cphop))))
+			return -EFAULT;
+		return crypto_copy_hash_state(fcr, cphop.dst_ses, cphop.src_ses);
+#endif /* CIOCPHASH */
+#ifdef CONFIG_CAAM_PRF
 	case CIOCPRF:
 	{
 		struct device *dev = caam_prf_ctx_create();
@@ -1677,10 +1811,15 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 
 		return ret;
 	}
+#endif
 	case CIOCKEY:
 	{
 		struct cryptodev_pkc *pkc =
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+			kmalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+#else
 			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+#endif
 
 		if (!pkc)
 			return -ENOMEM;
@@ -1696,6 +1835,20 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	}
 	return ret;
 	case CIOCCRYPT:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		if (unlikely(ret = kcop_from_user(&kcop, fcr, arg))) {
+			dwarning(1, "Error copying from user");
+			return ret;
+		}
+
+		ret = crypto_run(fcr, &kcop);
+		if (unlikely(ret)) {
+			dwarning(1, "Error in crypto_run");
+			return ret;
+		}
+
+		return kcop_to_user(&kcop, fcr, arg);
+#else
 		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
 		if (unlikely(!kcop))
 			return -ENOMEM;
@@ -1714,6 +1867,8 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		ret = kcop_to_user(kcop, fcr, arg);
 		kfree(kcop);
 		return ret;
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 	case CIOCHASH:
 		if (unlikely(copy_from_user(&khop.hash_op, arg, sizeof(struct hash_op_data)))) {
 			pr_err("copy from user fault\n");
@@ -1744,6 +1899,7 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 	hash_err:
 		hash_destroy_session(khop.hash_op.ses);
 		return ret;
+#endif
 	case CIOCAUTHCRYPT:
 		if (unlikely(ret = kcaop_from_user(&kcaop, fcr, arg))) {
 			dwarning(1, "Error copying from user");
@@ -1758,6 +1914,18 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		return kcaop_to_user(&kcaop, fcr, arg);
 #ifdef ENABLE_ASYNC
 	case CIOCASYNCCRYPT:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		if (unlikely(ret = kcop_from_user(&kcop, fcr, arg)))
+			return ret;
+
+		return crypto_async_run(pcr, &kcop);
+	case CIOCASYNCFETCH:
+		ret = crypto_async_fetch(pcr, &kcop);
+		if (unlikely(ret))
+			return ret;
+
+		return kcop_to_user(&kcop, fcr, arg);
+#else
 		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
 		if (unlikely(!kcop))
 			return -ENOMEM;
@@ -1785,13 +1953,18 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		kfree(kcop);
 		return ret;
 #endif
+#endif
 	case CIOCASYMASYNCRYPT:
 	{
 		struct cryptodev_pkc *pkc =
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+			kmalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
+#else
 			kzalloc(sizeof(struct cryptodev_pkc), GFP_KERNEL);
 
 		if (!pkc)
 			return -ENOMEM;
+#endif
 
 		ret = kop_from_user(&pkc->kop, arg);
 
@@ -1828,7 +2001,9 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 					cookie_list.cookie[i] =	pkc->kop.kop.cookie;
 					cookie_list.status[i] = pkc->result.err;
 				}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 				kfree(pkc->req);
+#endif
 				kfree(pkc);
 			} else {
 				spin_unlock_bh(&pcr->completion_lock);
@@ -1843,6 +2018,9 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 			struct pkc_cookie_list_s *user_ck_list = (void *)arg;
 			ret = put_user(0, &(user_ck_list->cookie_available));
 		}
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+		ret = cookie_list.cookie_available;
+#endif
 	}
 	return ret;
 	default:
@@ -1870,7 +2048,11 @@ static inline void compat_to_crypt_kop(struct compat_crypt_kop *compat,
 	}
 
 	kop->curve_type = compat->curve_type;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+	kop->cookie = compat->cookie;
+#else
 	kop->cookie = compat_ptr(compat->cookie);
+#endif
 }
 
 static int compat_kop_from_user(struct kernel_crypt_kop *kop,
@@ -1900,9 +2082,27 @@ static inline void crypt_kop_to_compat(struct crypt_kop *kop,
 			 ptr_to_compat(kop->crk_param[i].crp_p);
 		compat->crk_param[i].crp_nbits = kop->crk_param[i].crp_nbits;
 	}
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+	compat->cookie = kop->cookie;
+#else
 	compat->cookie = ptr_to_compat(kop->cookie);
+#endif
 	compat->curve_type = kop->curve_type;
 }
+
+#if 0 /* unused */
+static int compat_kop_to_user(struct kernel_crypt_kop *kop, void __user *arg)
+{
+	struct compat_crypt_kop compat_kop;
+
+	crypt_kop_to_compat(&kop->kop, &compat_kop);
+	if (unlikely(copy_to_user(arg, &compat_kop, sizeof(compat_kop)))) {
+		dprintk(1, KERN_ERR, "Cannot copy to userspace\n");
+		return -EFAULT;
+	}
+	return 0;
+}
+#endif
 
 static inline void
 compat_to_session_op(struct compat_session_op *compat, struct session_op *sop)
@@ -1989,6 +2189,7 @@ static int compat_kcop_to_user(struct kernel_crypt_op *kcop,
 	}
 	return 0;
 }
+#ifdef CONFIG_CAAM_PRF
 
 int compat_get_gen_ms_param(struct prf_req_s *req,
 				struct compat_prf_param *prfiop)
@@ -2209,7 +2410,6 @@ int compat_get_gen_finish_param(struct prf_req_s *req,
 	}
 	return 0;
 }
-
 static struct prf_req_s *compat_get_and_validate_prf_param(
 					struct compat_prf_param *prfiop)
 {
@@ -2342,6 +2542,7 @@ static int compat_prf_cop_to_user(struct compat_prf_param *prfiop,
 #undef DUMP
 	return ret;
 }
+#endif
 
 static long
 cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
@@ -2351,12 +2552,14 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	struct fcrypt *fcr;
 	struct session_op sop;
 	struct compat_session_op compat_sop;
-	struct kernel_hash_op khop;
 	struct kernel_crypt_op kcop;
 	struct kernel_crypt_auth_op kcaop;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	struct kernel_hash_op khop;
 	struct compat_hash_op_data compat_hash_op_data;
+#endif
 
-	int ret;
+	int ret = 0;
 
 	if (unlikely(!pcr))
 		BUG();
@@ -2366,9 +2569,11 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	case CRIOGET:
 	case CIOCFSESSION:
 	case CIOCGSESSINFO:
+#ifdef CONFIG_CAAM_PRF
 	case CIOCPRF:
+#endif
 		return cryptodev_ioctl(file, cmd, arg_);
-
+#ifdef CONFIG_CAAM_PRF
 	case COMPAT_CIOCPRF:
 	{
 		struct device *dev = caam_prf_ctx_create();
@@ -2424,6 +2629,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 		return ret;
 
 	}
+#endif
 	case COMPAT_CIOCGSESSION:
 		if (unlikely(copy_from_user(&compat_sop, arg,
 					    sizeof(compat_sop))))
@@ -2472,6 +2678,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 
 		return compat_kcop_to_user(&kcop, fcr, arg);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 	case COMPAT_CIOCHASH:
 		/* get session */
 		if (unlikely(copy_from_user(&compat_hash_op_data, arg,
@@ -2521,7 +2728,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	hash_err:
 		hash_destroy_session(khop.hash_op.ses);
 		return ret;
-
+#endif
 	case COMPAT_CIOCAUTHCRYPT:
 		if (unlikely(ret = compat_kcaop_from_user(&kcaop, fcr, arg))) {
 			dprintk(1, KERN_WARNING, "Error copying from user\n");
@@ -2572,7 +2779,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 	case COMPAT_CIOCASYMFETCHCOOKIE:
 	{
 		struct cryptodev_pkc *pkc;
-		int i;
+		int i = 0;
 		struct compat_pkc_cookie_list_s cookie_list;
 
 		ret = 0;
@@ -2591,8 +2798,13 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 				ret = crypto_async_fetch_asym(pkc);
 				if (!ret) {
 					cookie_list.cookie_available++;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
+					cookie_list.cookie[i] =
+						 pkc->kop.kop.cookie;
+#else
 					cookie_list.cookie[i] = ptr_to_compat(
 							pkc->kop.kop.cookie);
+#endif
 				}
 				kfree(pkc);
 			} else {
@@ -2604,7 +2816,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 		/* Reflect the updated request to user-space */
 		if (cookie_list.cookie_available) {
 			ret = copy_to_user(arg, &cookie_list,
-					sizeof(struct compat_pkc_cookie_list_s));
+				sizeof(struct compat_pkc_cookie_list_s));
 		}
 	}
 	return ret;
@@ -2618,7 +2830,7 @@ cryptodev_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg_)
 static unsigned int cryptodev_poll(struct file *file, poll_table *wait)
 {
 	struct crypt_priv *pcr = file->private_data;
-	int ret = 0;
+	unsigned int ret = 0;
 
 	poll_wait(file, &pcr->user_waiter, wait);
 
@@ -2679,7 +2891,7 @@ static struct ctl_table verbosity_ctl_dir[] = {
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec,
 	},
-	{ },
+	{0, },
 };
 
 static struct ctl_table verbosity_ctl_root[] = {
@@ -2688,7 +2900,7 @@ static struct ctl_table verbosity_ctl_root[] = {
 		.mode           = 0555,
 		.child          = verbosity_ctl_dir,
 	},
-	{ },
+	{0, },
 };
 static struct ctl_table_header *verbosity_sysctl_header;
 static int __init init_cryptodev(void)
@@ -2709,7 +2921,7 @@ static int __init init_cryptodev(void)
 
 	verbosity_sysctl_header = register_sysctl_table(verbosity_ctl_root);
 
-	pr_info(PFX "driver v1.8 + Cyphre BlackTIE loaded.\n");
+	pr_info(PFX "driver %s  + Cyphre BlackTIE loaded.\n", VERSION);
 
 	return 0;
 }

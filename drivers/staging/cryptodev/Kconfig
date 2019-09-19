@@ -1,6 +1,40 @@
-config CRYPTODEV
-	tristate "BSD Compatible Crypto Device"
+config FSL_CRYPTODEV
+	tristate "BSD Compatible Crypto Device (Freescale)"
 	default n
 	---help---
 	  Provides a /dev/crypto for userspace access to kernel crypto
 	  routines to make use of hardware off-load and accelerators.
+
+#Device configurations
+if FSL_CRYPTODEV
+
+#Enables async mode.
+config FSL_CRYPTODEV_ENABLE_ASYNC
+       bool "Enable ASYNC mode."
+       default n
+       ---help---
+       Enables Async Block Cipher calls. Deprecared around kernel 4.6.
+       Since version 1.6 the asynchronous mode has been disabled by default. 
+
+#Enables debug mode.
+config FSL_CRYPTODEV_DEBUG
+       bool "Enable Debug  mode."
+       default y
+       ---help---
+       Enables Async Block Cipher calls. Deprecared around kernel 4.6.
+
+#Crypto algorithm kernel driver only.
+config FSL_CRYPTODEV_CRYPTO_ALG_KERN_DRIVER_ONLY
+       bool "Crypto kernel drivers only."
+       default n
+       ---help---
+       All crypto done by kernel drivers. No offload.
+
+#Enable 32 bit user space compatibility.
+config FSL_CRYPTODEV_CONFIG_COMPAT
+       bool "Enable 32 bit user space compatibility mode."
+       default n
+       ---help---
+       Enable compatibility mode for 32 bit user space.
+
+endif # FSL_CRYPTODEV
