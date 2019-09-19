@@ -61,7 +61,7 @@ UTS_MACHINE := $(subst $(space),,$(machine-y))
 
 # XXX This needs to be before we override LD below
 ifdef CONFIG_PPC32
-KBUILD_LDFLAGS_MODULE += arch/powerpc/lib/crtsavres.o
+KBUILD_LDFLAGS_PREREQ += arch/powerpc/lib/crtsavres.o
 else
 KBUILD_LDFLAGS_MODULE += -T $(srctree)/arch/powerpc/kernel/module.lds
 ifeq ($(call ld-ifversion, -ge, 225000000, y),y)
