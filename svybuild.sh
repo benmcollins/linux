@@ -20,6 +20,9 @@ nway=${cpus}
 export CONCURRENCY_LEVEL=$nway
 export KBUILD_OUTPUT=""
 
+# Make sure submodules for multi-kernel drivers are current.
+git submodule update --init
+
 dir="$(pwd)/../build-$target"
 export MAKEFLAGS="O=$dir -j$cpus -l$nway V=1 "
 
