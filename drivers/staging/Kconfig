@@ -128,4 +128,6 @@ source "drivers/staging/erofs/Kconfig"
 
 source "drivers/staging/cryptodev/Kconfig"
 
+source "drivers/staging/skmm-host/Kconfig"
+
 endif # STAGING

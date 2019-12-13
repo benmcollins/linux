@@ -1,0 +1,31 @@
+*.o
+*.o.cmd
+*.mod.c
+*.ko
+*.ko.cmd
+modules.order
+.tmp_versions
+Module.symvers
+*.expand
+
+# klockwork, eclipse, cw
+/kw-tables
+/.project
+/*.cproject
+/.settings
+
+# cscope files
+cscope.*
+ncscope.*
+tags
+TAGS
+
+# gnu global files
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+*.orig
+*~
+\#*#

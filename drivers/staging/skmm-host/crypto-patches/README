@@ -1,0 +1,28 @@
+
+General Patching Instructions:
+
+# algapi.h
+cd /lib/modules/$(uname -r)/build/include/crypto
+sudo chmod 1777 ../crypto
+sudo chown $USER:$USER algapi.h
+# Several patch files to choose from. 
+patch -p0 < ~/fips/skmm-host/crypto-patches/algapi-add-pkc-support-4.16.patch
+
+# When you have a patch for a new kernel version, save it's patch file.
+diff -h algapi.h.orig algapi.h > algapi-add-pkc-support-5.0.0.patch
+mv algapi-add-pkc-support-5.0.0.patch ~/fips/skmm-host/crypto-patches/.
+
+# crypto.h
+cd /lib/modules/$(uname -r)/build/include/linux
+sudo chmod 1777 ../linux
+sudo chown $USER:$USER crypto.h
+# Several patch files to choose from. 
+patch -p0 < ~/fips/skmm-host/crypto-patches/crypto-add-pkc-support-4.19.patch
+# Fix any patch rejects.
+# 2 out of 11 hunks FAILED -- saving rejects to file crypto.h.rej
+
+# When you have a patch for a new kernel version, save it's patch file.
+diff -h crypto.h.orig crypto.h > ~/fips/skmm-host/crypto-patches/crypto-add-pkc-support-5.0.0.patch
+
+
+

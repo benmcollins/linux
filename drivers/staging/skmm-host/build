@@ -1,0 +1,60 @@
+#!/bin/sh
+
+# This is a standalone compiling assistant.
+#
+# @TAG: 	Indicate the Host platform (p4080, t4240, x86)
+# @COMPILER: 	Indicate the compiler	
+# @KDIR: 	The path of the linux kernel
+# @INSTALL_DIR:	The path of skmm host module installation 
+# @note if linkder crtsavres.o error, apply kernel.org bug #11143
+
+# How to use this script
+# 
+# 1. Set TAG and KDIR varibles:
+#	
+# 2. Build code
+# => ./build
+#
+# 3. Clean code
+# => ./build clean
+# 
+# native build?
+if [ "$(uname -m)" = "ppc" ]
+then
+TAG=powerpc
+else
+TAG=x86
+fi
+
+KDIR=/lib/modules/$(uname -r)/build
+#KDIR=../../../../build-ct2-x86
+#KDIR=/lib/modules/4.19.58-cyphre/build
+#KDIR=/lib/modules/4.16.18-cyphre/build
+#KDIR=/lib/modules/4.4.0-148-generic/build
+INSTALL_DIR=
+
+echo "###########################"
+echo "#                         #"
+echo "#  Host driver compiling  #"
+echo "#                         #"
+echo "###########################"
+
+if [ $TAG = "p4080" ];then
+	MACHINE=powerpc
+	COMPILER=powerpc-fsl-linux-
+elif [ $TAG = "t4240" ];then
+	MACHINE=powerpc
+	COMPILER=powerpc64-fsl-linux-
+elif [ $TAG = "powerpc" ];then
+	MACHINE=powerpc
+	COMPILER=
+elif [ $TAG = "x86" ];then
+	MACHINE=x86
+	COMPILER=
+else
+	MACHINE=$(uname -m)
+	CROSS_COMPILE=
+fi
+
+make ARCH=$MACHINE CROSS_COMPILE=$COMPILER KERNEL_DIR=$KDIR PREFIX=$INSTALL_DIR $1
+

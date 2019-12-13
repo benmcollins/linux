@@ -1,0 +1,81 @@
+config FSL_C2X0_CRYPTO_DRV
+        tristate "Freescale SKMM Host driver for C29x"
+        default n
+	select SOC_BUS
+        ---help---
+          Provides access to c293pcie
+          routines to make use of hardware off-load and accelerators.
+
+#Device configurations
+if FSL_C2X0_CRYPTO_DRV
+
+#Specifies type of EP
+config FSL_C2X0_P4080_EP
+       bool "P4080 SOC device."
+       default n
+       ---help---
+       P4080 based SEC engine.
+
+config FSL_C2X0_C293_EP
+       bool "C293 PCIe card."
+       default y
+       ---help---
+       Build for PCIe card.
+
+#Controls the debug print level
+config FSL_C2X0_DEBUG_PRINT
+        bool "Controls the debug print level."
+        default y
+
+#Controls error printing.
+config FSL_C2X0_ERROR_PRINT
+        bool "Controls error printing."
+        default y
+
+#Controls info printing.
+config FSL_C2X0_INFO_PRINT
+        bool "Controls info printing."
+        default y
+
+#Enable HASH/SYMMETRIC offloading
+config FSL_C2X0_HASH_OFFLOAD
+       bool "Enable HASH offloading."
+       default y
+
+config FSL_C2X0_SYMMETRIC_OFFLOAD
+       bool "Enable Symetric key offloading."
+       default y
+
+#Enable RNG offloading
+config FSL_C2X0_RNG_OFFLOAD
+       bool "Enable RNG offloading."
+       default y
+
+#Specifies whether host DMA support to be enabled /disabled in the driver
+config FSL_C2X0_USE_HOST_DMA
+       bool "Enable host DMA support in the driver."
+       default n
+
+#Specifies whether driver/firmware is running high performance mode
+config FSL_C2X0_HIGH_PERF_MODE
+       bool "Enable High Performance Mode."
+       default y
+
+#Specify building host-driver to support Virtualization
+config FSL_C2X0_VIRTIO
+       bool "Enable virtualization support."
+       default y
+       ---help---
+       All offloading depends on Virtualization support.
+
+# Specific no pkc support in module or kernel.
+config FSL_C2X0_NO_PKC
+	bool "No PKC support in driver or kernel."
+        default n
+
+#Specify whether build cryptoapi pkc-related into host driver on x86
+config FSL_C2X0_EXTRA_PKC
+       bool "Add PKC support in driver."
+       default y
+
+endif # FSL_C2X0_CRYPTO_DRV

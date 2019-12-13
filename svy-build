@@ -1,55 +1,69 @@
 #!/bin/bash
 
-target=
+target="$1"
+target_arch=
 rev="Cyphre-BTv1-1"
 
-case "$1" in
+case "$target" in
 bt4)
-	target="$1"
+	target_arch="powerpc"
 	dtb="t4240mfcs"
 	image=uImage
 	;;
 ct1)
+	target_arch="powerpc"
 	export KDEB_CHANGELOG_DIST=xenial
 	export KDEB_SOURCENAME=linux-cyphre
 	export KDEB_PKGVERSION=$(git describe | sed -e "s|^v||")
 	export KBUILD_IMAGE=arch/powerpc/boot/uImage
 	export EMAIL="ben.collins@rig.net"
 	export NAME="Benjamin Collins"
-	target="$1"
 	dtb="cts1000"
 	image=bindeb-pkg
 	;;
 ct1-fw)
-	target="$1"
+	target_arch="powerpc"
 	dtb="cts1000"
 	image=uImage
 	;;
+btx)
+	target_arch="x86_64"
+        export KDEB_CHANGELOG_DIST=xenial
+        export KDEB_SOURCENAME=linux-cyphre
+	export KDEB_PKGVERSION=$(git describe | sed -e "s|^v||")
+        #export KBUILD_IMAGE=arch/powerpc/boot/uImage
+        export EMAIL="rick.foos@rig.net"
+        export NAME="Rick Foos"
+        image=bindeb-pkg
+        ;;
 *)
-	echo "Pick one of ct1, ct1-fw, or bt4" 1>&2
-	exit 1
+        echo "Pick one of btx, ct1, ct1-fw, or bt4" 1>&2
+        exit 1
 esac
 
 cpus=`getconf _NPROCESSORS_ONLN`
 nway=`echo "($cpus * 15) / 10" | bc`
 dir="`pwd`/build-$target"
 
-MAKEFLAGS="O=$dir -j$nway ARCH=powerpc EXTRAVERSION=-$rev"
+export CONCURRENCY_LEVEL=$nway
+MAKEFLAGS="O=$dir -j$nway -l$nway ARCH=$target_arch EXTRAVERSION=-$rev"
 
 arch=`uname -m`
 case "`uname -m`" in
 ppc*)
         ;;
 *)
+        [ "x$1" == "xbtx" ] || \
         MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=powerpc-linux-gnu-"
 esac
 
 export MAKEFLAGS
 
 if ! test -f "$dir/.config"; then
-	test -d "$dir" || mkdir "$dir"
+	test -d "$dir" || mkdir -p "$dir"
 	cp "svy-configs/$target" "$dir/.config"
 fi
 
+[ -n "${prepare}" ] && make prepare
 make $image
-make ${dtb}.dtb
+[ -n "${dtb}" ] &&  make ${dtb}.dtb

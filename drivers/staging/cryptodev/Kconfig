@@ -4,3 +4,37 @@ config CRYPTODEV
 	---help---
 	  Provides a /dev/crypto for userspace access to kernel crypto
 	  routines to make use of hardware off-load and accelerators.
+
+#Device configurations
+if CRYPTODEV
+
+#Enables async mode.
+config CRYPTODEV_ENABLE_ASYNC
+       bool "Enable ASYNC mode."
+       default n
+       ---help---
+       Enables Async Block Cipher calls. Deprecared around kernel 4.6.
+       Since version 1.6 the asynchronous mode has been disabled by default. 
+
+#Enables debug mode.
+config CRYPTODEV_DEBUG
+       bool "Enable Debug  mode."
+       default y
+       ---help---
+       Enables Async Block Cipher calls. Deprecared around kernel 4.6.
+
+#Crypto algorithm kernel driver only.
+config CRYPTODEV_CRYPTO_ALG_KERN_DRIVER_ONLY
+       bool "Crypto kernel drivers only."
+       default n
+       ---help---
+       All crypto done by kernel drivers. No offload.
+
+#Enable 32 bit user space compatibility.
+config CRYPTODEV_CONFIG_COMPAT
+       bool "Enable 32 bit user space compatibility mode."
+       default n
+       ---help---
+       Enable compatibility mode for 32 bit user space.
+
+endif # CRYPTODEV
