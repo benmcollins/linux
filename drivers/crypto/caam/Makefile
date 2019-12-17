@@ -5,6 +5,9 @@
 ifeq ($(CONFIG_CRYPTO_DEV_FSL_CAAM_DEBUG), y)
 	ccflags-y := -DDEBUG
 endif
+ifeq ($(CONFIG_CRYPTO_DEV_FSL_CAAM_DEBUG_RNG), y)
+	ccflags-y += -DDEBUG_RNG
+endif
 
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM) += caam.o
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_JR) += caam_jr.o

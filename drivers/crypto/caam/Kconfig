@@ -158,7 +158,15 @@ config CRYPTO_DEV_FSL_CAAM_DEBUG
 	depends on CRYPTO_DEV_FSL_CAAM
 	help
 	  Selecting this will enable printing of various debug
-	  information in the CAAM driver.
+	  information in the CAAM driver. RNG debug is separate flag.
+
+config CRYPTO_DEV_FSL_CAAM_DEBUG_RNG
+	bool "Enable debug output of RNG in CAAM driver"
+	depends on CRYPTO_DEV_FSL_CAAM
+	help
+	  Selecting this will enable printing of various debug
+	  information RNG part of CAAM driver. Initialization of
+	  RNG before boot testing entropy is the bulk of the output.
 
 config CRYPTO_DEV_FSL_CAAM_CRYPTO_API_DESC
 	def_tristate (CRYPTO_DEV_FSL_CAAM_CRYPTO_API || \

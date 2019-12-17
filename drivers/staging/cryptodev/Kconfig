@@ -2,8 +2,8 @@ config CRYPTODEV
 	tristate "BSD Compatible Crypto Device"
 	default n
 	---help---
-	  Provides a /dev/crypto for userspace access to kernel crypto
-	  routines to make use of hardware off-load and accelerators.
+	Provides a /dev/crypto for userspace access to kernel crypto
+	routines to make use of hardware off-load and accelerators.
 
 #Device configurations
 if CRYPTODEV
@@ -18,8 +18,8 @@ config CRYPTODEV_ENABLE_ASYNC
 
 #Enables debug mode.
 config CRYPTODEV_DEBUG
-       bool "Enable Debug  mode."
-       default y
+       bool "Enable Debug mode."
+       default n
        ---help---
        Enables Async Block Cipher calls. Deprecared around kernel 4.6.
 
