@@ -5,11 +5,6 @@ target_arch=
 rev="Cyphre-BTv1-1"
 
 case "$target" in
-bt4)
-	target_arch="powerpc"
-	dtb="t4240mfcs"
-	image=uImage
-	;;
 ct1)
 	target_arch="powerpc"
 	export KDEB_CHANGELOG_DIST=xenial
@@ -28,16 +23,16 @@ ct1-fw)
 	;;
 btx)
 	target_arch="x86_64"
-        export KDEB_CHANGELOG_DIST=xenial
-        export KDEB_SOURCENAME=linux-cyphre
+	export KDEB_CHANGELOG_DIST=xenial
+	export KDEB_SOURCENAME=linux-cyphre
 	export KDEB_PKGVERSION=$(git describe | sed -e "s|^v||")
-        #export KBUILD_IMAGE=arch/powerpc/boot/uImage
-        export EMAIL="rick.foos@rig.net"
-        export NAME="Rick Foos"
-        image=bindeb-pkg
-        ;;
+	#export KBUILD_IMAGE=arch/powerpc/boot/uImage
+	export EMAIL="rick.foos@rig.net"
+	export NAME="Rick Foos"
+	image=bindeb-pkg
+	;;
 *)
-        echo "Pick one of btx, ct1, ct1-fw, or bt4" 1>&2
+        echo "TARGETS: btx ct1 ct1-fw" 1>&2
         exit 1
 esac
 
@@ -50,10 +45,10 @@ MAKEFLAGS="O=$dir -j$nway ARCH=$target_arch EXTRAVERSION=-$rev"
 arch=`uname -m`
 case "`uname -m`" in
 ppc*)
-        ;;
+	;;
 *)
-        [ "x$1" == "xbtx" ] || \
-        MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=powerpc-linux-gnu-"
+	[ "x$1" == "xbtx" ] || \
+	MAKEFLAGS="${MAKEFLAGS} CROSS_COMPILE=powerpc-linux-gnu-"
 esac
 
 export MAKEFLAGS
