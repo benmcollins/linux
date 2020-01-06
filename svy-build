@@ -42,7 +42,7 @@ dir="`pwd`/build-$target"
 
 export DEB_PARALLEL=$nway
 
-MAKEFLAGS="O=$dir -j$nway ARCH=$target_arch EXTRAVERSION=-$rev"
+MAKEFLAGS="O=$dir -j$nway -l$nway ARCH=$target_arch EXTRAVERSION=-$rev"
 
 arch=`uname -m`
 case "`uname -m`" in

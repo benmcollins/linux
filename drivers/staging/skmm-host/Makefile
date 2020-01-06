@@ -108,9 +108,6 @@ endif
 
 EXTRA_CFLAGS += -I$(src)/host_driver -I$(src)/algs -I$(src)/crypto_dev -I$(src)/dcl -I$(src)/test
 
-# Enable/Disable driver.
-CONFIG_FSL_C2X0_CRYPTO_DRV ?= m
-
 obj-$(CONFIG_FSL_C2X0_CRYPTO_DRV) = fsl_skmm_crypto_offload_drv.o
 obj-$(CONFIG_FSL_C2X0_CRYPTO_DRV) += pci_dma_test.o
 

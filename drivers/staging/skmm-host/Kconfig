@@ -1,7 +1,7 @@
 config FSL_C2X0_CRYPTO_DRV
         tristate "Freescale SKMM Host driver for C29x"
+	select CRYPTODEV
         default n
-	select SOC_BUS
         ---help---
           Provides access to c293pcie
           routines to make use of hardware off-load and accelerators.
