@@ -1,6 +1,7 @@
 config CRYPTO_DEV_FSL_CAAM
 	tristate "Freescale CAAM-Multicore driver backend"
-	select CRYPTODEV
+	depends on FSL_SOC || ARCH_MXC || ARCH_LAYERSCAPE
+	select SOC_BUS
 	help
 	  Enables the driver module for Freescale's Cryptographic Accelerator
 	  and Assurance Module (CAAM), also known as the SEC version 4 (SEC4).
@@ -157,15 +158,14 @@ config CRYPTO_DEV_FSL_CAAM_DEBUG
 	depends on CRYPTO_DEV_FSL_CAAM
 	help
 	  Selecting this will enable printing of various debug
-	  information in the CAAM driver. RNG debug is separate flag.
+	  information in the CAAM driver.
 
 config CRYPTO_DEV_FSL_CAAM_DEBUG_RNG
 	bool "Enable debug output of RNG in CAAM driver"
 	depends on CRYPTO_DEV_FSL_CAAM
 	help
-	  Selecting this will enable printing of various debug
-	  information RNG part of CAAM driver. Initialization of
-	  RNG before boot testing entropy is the bulk of the output.
+	  Selecting this will enable printing of entropy initialization
+	  before boot for the RNG part of CAAM driver.
 
 config CRYPTO_DEV_FSL_CAAM_CRYPTO_API_DESC
 	def_tristate (CRYPTO_DEV_FSL_CAAM_CRYPTO_API || \
