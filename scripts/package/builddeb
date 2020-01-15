@@ -205,8 +205,30 @@ cat <<EOF > "$tmpdir/etc/kernel/postrm.d/skmm-host"
 rm -f /etc/modules-load.d/skmm-host.conf
 EOF
 chmod 755 "$tmpdir/etc/kernel/postrm.d/skmm-host"
-fi
+# Add fsl config file.
+mkdir -p "$tmpdir/etc/skmm"
+cat <<EOF > "$tmpdir/etc/skmm/skmm_crypto.cfg"
+<device>
+firmware:/etc/skmm/u-boot-sd.bin
+rings:2
 
+<ring>
+depth:16
+affinity:0
+priority:1
+order:0
+<end>
+
+<ring>
+depth:1024
+affinity:0
+priority:1
+order:0
+<end>
+
+<end>
+EOF
+fi
 
 # Build kernel header package
 (cd $srctree; find . -name Makefile\* -o -name Kconfig\* -o -name \*.pl) > "$objtree/debian/hdrsrcfiles"
