@@ -5366,9 +5366,10 @@ CONFIG_IOMMU_SUPPORT=y
 # Generic IOMMU Pagetable Support
 #
 # CONFIG_IOMMU_DEBUGFS is not set
+CONFIG_DMAR_TABLE=y
 # CONFIG_AMD_IOMMU is not set
 # CONFIG_INTEL_IOMMU is not set
-# CONFIG_IRQ_REMAP is not set
+CONFIG_IRQ_REMAP=y
 
 #
 # Remoteproc drivers
