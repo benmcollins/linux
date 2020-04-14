@@ -111,13 +111,7 @@ __crypto_run_std(struct csession *ses_ptr, struct crypt_op *cop)
 	int ret = 0;
 
 	nbytes = cop->len;
-
-#ifdef CONFIG_X86_64
-	/* Setup for hardware with limited addressing. */
-	data = (char *)__get_free_page(GFP_DMA32);
-#else
 	data = (char *)__get_free_page(GFP_KERNEL);
-#endif
 
 	if (unlikely(!data)) {
 		derr(1, "Error getting free page.");
@@ -815,11 +809,6 @@ int crypto_run(struct fcrypt *fcr, struct kernel_crypt_op *kcop)
 				cop->flags &= ~COP_FLAG_NO_ZC;
 			}
 		}
-
-#ifdef CONFIG_X86_64
-		/* XXX: Disable zero copy for now. */
-		cop->flags &= ~COP_FLAG_NO_ZC;
-#endif
 
 		if (cop->flags & COP_FLAG_NO_ZC)
 			ret = __crypto_run_std(ses_ptr, &kcop->cop);
