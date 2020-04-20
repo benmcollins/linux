@@ -648,7 +648,9 @@ static struct {
 	u32 mask;
 } pkc_alg_list[] = {
 		{"pkc(rsa)", CRYPTO_ALG_TYPE_PKC_RSA, 0},
+#ifdef CRYPTO_ALG_TYPE_PKC_DSA
 		{"pkc(dsa)", CRYPTO_ALG_TYPE_PKC_DSA, 0},
+#endif
 		{"pkc(dh)", CRYPTO_ALG_TYPE_PKC_DH, 0},
 };
 

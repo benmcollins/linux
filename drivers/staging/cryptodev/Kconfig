@@ -30,11 +30,4 @@ config CRYPTODEV_CRYPTO_ALG_KERN_DRIVER_ONLY
        ---help---
        All crypto done by kernel drivers. No offload.
 
-#Enable 32 bit user space compatibility.
-config CRYPTODEV_CONFIG_COMPAT
-       bool "Enable 32 bit user space compatibility mode."
-       default n
-       ---help---
-       Enable compatibility mode for 32 bit user space.
-
 endif # CRYPTODEV
