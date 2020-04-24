@@ -538,6 +538,7 @@ static int hash_create_session(struct hash_op_data *hash_op)
 		goto error_hash;
 	}
 
+	kfree(mkey);
 	hash_op->ses = ses;
 	return 0;
 
