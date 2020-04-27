@@ -188,7 +188,7 @@ fi
 if grep -q '^CONFIG_FSL_C2X0_CRYPTO_DRV=m' "$KCONFIG_CONFIG"; then
 cat <<EOF > "$tmpdir/etc/kernel/postinst.d/skmm-host.conf"
 # Manual load of skmm-host drivers.
-fsl_skmm_crypto_offload_drv
+cyphre_crypto
 cryptodev
 EOF
 chmod 644 "$tmpdir/etc/kernel/postinst.d/skmm-host.conf"
