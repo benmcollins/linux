@@ -650,6 +650,8 @@ static struct {
 		{"pkc(rsa)", CRYPTO_ALG_TYPE_PKC_RSA, 0},
 #ifdef CRYPTO_ALG_TYPE_PKC_DSA
 		{"pkc(dsa)", CRYPTO_ALG_TYPE_PKC_DSA, 0},
+#else
+		{"pkc(dsa-null)", 0, 0 },
 #endif
 		{"pkc(dh)", CRYPTO_ALG_TYPE_PKC_DH, 0},
 };
