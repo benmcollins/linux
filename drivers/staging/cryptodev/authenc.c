@@ -614,9 +614,11 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 	cryptodev_cipher_auth(&ses_ptr->cdata, auth_sg, auth_len);
 
+	sg_chain(auth_sg, 2, src_sg);
+
 	if (caop->op == COP_ENCRYPT) {
 		ret = cryptodev_cipher_encrypt(&ses_ptr->cdata,
-						src_sg, dst_sg, len);
+					auth_sg, dst_sg, len);
 		if (unlikely(ret)) {
 			derr(0, "cryptodev_cipher_encrypt: %d", ret);
 			return ret;
@@ -625,7 +627,7 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		caop->tag = caop->dst + len;
 	} else {
 		ret = cryptodev_cipher_decrypt(&ses_ptr->cdata,
-						src_sg, dst_sg, len);
+						auth_sg, dst_sg, len);
 
 		if (unlikely(ret)) {
 			derr(0, "cryptodev_cipher_decrypt: %d", ret);
@@ -669,7 +671,7 @@ __crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcao
 	          * to map them.
 	          */
 		unsigned char *auth_buf = NULL;
-		struct scatterlist tmp;
+		struct scatterlist tmp[2];
 
 		if (unlikely(caop->auth_len > PAGE_SIZE)) {
 			derr(1, "auth data len is excessive.");
@@ -689,8 +691,9 @@ __crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcao
 				goto free_auth_buf;
 			}
 
-			sg_init_one(&tmp, auth_buf, caop->auth_len);
-			auth_sg = &tmp;
+			sg_init_table(tmp, 2);
+			sg_set_buf(&tmp[0], auth_buf, caop->auth_len);
+			auth_sg = &tmp[0];
 		} else {
 			auth_sg = NULL;
 		}
