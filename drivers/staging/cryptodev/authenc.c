@@ -601,6 +601,9 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 	struct crypt_auth_op *caop = &kcaop->caop;
 	int max_tag_len;
 
+	if (!dst_sg || !src_sg || !auth_sg)
+		return -EINVAL;
+
 	max_tag_len = cryptodev_cipher_get_tag_size(&ses_ptr->cdata);
 	if (unlikely(caop->tag_len > max_tag_len)) {
 		derr(0, "Illegal tag length: %d", caop->tag_len);
