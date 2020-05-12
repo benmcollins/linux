@@ -2,7 +2,7 @@
 
 target="$1"
 target_arch=
-rev="Cyphre-BTv1-2"
+rev="Cyphre-BTv1-4"
 
 case "$target" in
 ct1)
