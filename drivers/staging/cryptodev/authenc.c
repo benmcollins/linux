@@ -601,7 +601,7 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 	struct crypt_auth_op *caop = &kcaop->caop;
 	int max_tag_len;
 
-	if (!dst_sg || !src_sg || !auth_sg)
+	if (!dst_sg || !src_sg)
 		return -EINVAL;
 
 	max_tag_len = cryptodev_cipher_get_tag_size(&ses_ptr->cdata);
@@ -617,7 +617,10 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 	cryptodev_cipher_auth(&ses_ptr->cdata, auth_sg, auth_len);
 
-	sg_chain(auth_sg, 2, src_sg);
+	if (auth_sg && auth_len)
+		sg_chain(auth_sg, 2, src_sg);
+	else
+		auth_sg = src_sg;
 
 	if (caop->op == COP_ENCRYPT) {
 		ret = cryptodev_cipher_encrypt(&ses_ptr->cdata,
