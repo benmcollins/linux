@@ -626,7 +626,7 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 		ret = cryptodev_cipher_encrypt(&ses_ptr->cdata,
 					auth_sg, dst_sg, len);
 		if (unlikely(ret)) {
-			derr(0, "cryptodev_cipher_encrypt: %d", ret);
+			derr(1, "cryptodev_cipher_encrypt: %d", ret);
 			return ret;
 		}
 		kcaop->dst_len = len + caop->tag_len;
@@ -636,7 +636,7 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 						auth_sg, dst_sg, len);
 
 		if (unlikely(ret)) {
-			derr(0, "cryptodev_cipher_decrypt: %d", ret);
+			derr(1, "cryptodev_cipher_decrypt: %d", ret);
 			return ret;
 		}
 		kcaop->dst_len = len - caop->tag_len;
