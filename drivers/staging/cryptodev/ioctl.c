@@ -1620,7 +1620,6 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		if (unlikely(ret))
 			return ret;
 		return copy_to_user(arg, &siop, sizeof(siop));
-#if defined(CONFIG_FSL_CAAM_PRF_SUPPORT) || defined(CONFIG_FSL_C2X0_PRF_OFFLOAD)
 	case CIOCPRF:
 	{
 		struct device *dev = caam_prf_ctx_create();
@@ -1679,7 +1678,6 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 
 		return ret;
 	}
-#endif
 	case CIOCKEY:
 	{
 		struct cryptodev_pkc *pkc =
