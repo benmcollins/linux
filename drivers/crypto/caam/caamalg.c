@@ -1018,11 +1018,11 @@ static void init_aead_job(struct aead_request *req,
 
 	if (encrypt)
 		append_seq_out_ptr(desc, dst_dma,
-				   req->assoclen + req->cryptlen + authsize,
+				   req->cryptlen + authsize,
 				   out_options);
 	else
 		append_seq_out_ptr(desc, dst_dma,
-				   req->assoclen + req->cryptlen - authsize,
+				   req->cryptlen - authsize,
 				   out_options);
 }
 
@@ -1218,13 +1218,11 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 			return ERR_PTR(src_nents);
 		}
 
-		dst_nents = sg_nents_for_len(req->dst, req->assoclen +
-					     req->cryptlen +
-						(encrypt ? authsize :
-							   (-authsize)));
+		dst_nents = sg_nents_for_len(req->dst, req->cryptlen +
+					(encrypt ? authsize : (-authsize)));
 		if (unlikely(dst_nents < 0)) {
 			dev_err(jrdev, "Insufficient bytes (%d) in dst S/G\n",
-				req->assoclen + req->cryptlen +
+				req->cryptlen +
 				(encrypt ? authsize : (-authsize)));
 			return ERR_PTR(dst_nents);
 		}
