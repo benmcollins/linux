@@ -2,7 +2,7 @@
 
 target="$1"
 target_arch=
-rev="Cyphre-BTv1-5"
+rev=$(git describe | sed -e 's/.*-Cyphre/Cyphre/')
 
 case "$target" in
 ct1)
