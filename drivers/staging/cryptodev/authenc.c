@@ -648,7 +648,7 @@ auth_n_crypt(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop,
 
 /* This is the main crypto function - zero-copy edition */
 static int
-__crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
+__crypto_auth_run(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
 {
 	struct scatterlist *dst_sg, *auth_sg, *src_sg;
 	struct crypt_auth_op *caop = &kcaop->caop;
@@ -678,37 +678,37 @@ __crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcao
 	          */
 		unsigned char *auth_buf = NULL;
 		struct scatterlist tmp[2];
+		unsigned char *src_buf = NULL, *dst_buf = NULL;
+		struct scatterlist __src_sg[1], __dst_sg[1];
 
 		if (unlikely(caop->auth_len > PAGE_SIZE)) {
 			derr(1, "auth data len is excessive.");
 			return -EINVAL;
 		}
 
-		auth_buf = (char *)__get_free_page(GFP_KERNEL);
-		if (unlikely(!auth_buf)) {
-			derr(1, "unable to get a free page.");
-			return -ENOMEM;
-		}
-
 		if (caop->auth_src && caop->auth_len > 0) {
+			auth_buf = (char *)__get_free_page(GFP_DMA32);
+			if (unlikely(!auth_buf)) {
+				derr(1, "unable to get a free page.");
+				return -ENOMEM;
+			}
+
 			if (unlikely(copy_from_user(auth_buf, caop->auth_src, caop->auth_len))) {
 				derr(1, "unable to copy auth data from userspace.");
 				ret = -EFAULT;
-				goto free_auth_buf;
+				goto free_bufs;
 			}
 
 			sg_init_table(tmp, 2);
 			sg_set_buf(&tmp[0], auth_buf, caop->auth_len);
 			auth_sg = &tmp[0];
-		} else {
-			auth_sg = NULL;
 		}
 
 		if (caop->flags & COP_FLAG_AEAD_TLS_TYPE && ses_ptr->cdata.aead == 0) {
 			ret = get_userbuf_tls(ses_ptr, kcaop, &dst_sg);
 			if (unlikely(ret)) {
 				derr(1, "get_userbuf_tls(): Error getting user pages.");
-				goto free_auth_buf;
+				goto free_bufs;
 			}
 
 			ret = tls_auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
@@ -719,24 +719,56 @@ __crypto_auth_run_zc(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcao
 				      ses_ptr->cdata.aead == 0))) {
 				derr(0, "Only stream and AEAD ciphers are allowed for authenc");
 				ret = -EINVAL;
-				goto free_auth_buf;
+				goto free_bufs;
 			}
 
-			ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
-					  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
-			if (unlikely(ret)) {
-				derr(1, "get_userbuf(): Error getting user pages.");
-				goto free_auth_buf;
+			if (caop->flags & COP_FLAG_NO_ZC) {
+				src_buf = (char *)__get_free_page(GFP_DMA32);
+				dst_buf = (char *)__get_free_page(GFP_DMA32);
+				if (unlikely(!src_buf || !dst_buf)) {
+					ret = -ENOMEM;
+					goto free_bufs;
+				}
+
+				src_sg = __src_sg;
+				dst_sg = __dst_sg;
+				sg_init_one(src_sg, src_buf, caop->len);
+				sg_init_one(dst_sg, dst_buf, kcaop->dst_len);
+
+				if (unlikely(copy_from_user(src_buf, caop->src, caop->len))) {
+					ret = -EFAULT;
+					goto free_bufs;
+				}
+			} else {
+				ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
+						  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
+
+				if (unlikely(ret)) {
+					derr(1, "get_userbuf(): Error getting user pages.");
+					goto free_bufs;
+				}
 			}
 
 			ret = auth_n_crypt(ses_ptr, kcaop, auth_sg, caop->auth_len,
 					   src_sg, dst_sg, caop->len);
+
+			if (!ret && (caop->flags & COP_FLAG_NO_ZC)) {
+				if (unlikely(copy_to_user(caop->dst, dst_buf, kcaop->dst_len))) {
+					ret = -EFAULT;
+					goto free_bufs;
+				}
+			}
 		}
 
+free_bufs:
 		release_user_pages(ses_ptr);
 
-free_auth_buf:
-		free_page((unsigned long)auth_buf);
+		if (auth_buf)
+			free_page((unsigned long)auth_buf);
+		if (src_buf)
+			free_page((unsigned long)src_buf);
+		if (dst_buf)
+			free_page((unsigned long)dst_buf);
 	}
 
 	return ret;
@@ -779,9 +811,27 @@ int crypto_auth_run(struct fcrypt *fcr, struct kernel_crypt_auth_op *kcaop)
 	cryptodev_cipher_set_iv(&ses_ptr->cdata, kcaop->iv,
 				min(ses_ptr->cdata.ivsize, kcaop->ivlen));
 
-	ret = __crypto_auth_run_zc(ses_ptr, kcaop);
+	if (!(caop->flags & COP_FLAG_NO_ZC)) {
+		caop->flags |= COP_FLAG_NO_ZC;
+
+		if (unlikely(ses_ptr->alignmask && !IS_ALIGNED((unsigned long)caop->src, ses_ptr->alignmask))) {
+			dwarning(2, "source address %p is not %d byte aligned - disabling zero copy",
+				 caop->src, ses_ptr->alignmask + 1);
+			caop->flags |= COP_FLAG_NO_ZC;
+		}
+
+		if (unlikely(ses_ptr->alignmask && !IS_ALIGNED((unsigned long)caop->dst, ses_ptr->alignmask))) {
+			dwarning(2, "destination address %p is not %d byte aligned - disabling zero copy",
+				 caop->dst, ses_ptr->alignmask + 1);
+			caop->flags |= COP_FLAG_NO_ZC;
+		}
+
+		caop->flags |= COP_FLAG_NO_ZC;
+	}
+
+	ret = __crypto_auth_run(ses_ptr, kcaop);
 	if (unlikely(ret)) {
-		derr(1, "error in __crypto_auth_run_zc()");
+		derr(1, "error in __crypto_auth_run)");
 		goto out_unlock;
 	}
 

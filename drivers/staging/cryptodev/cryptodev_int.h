@@ -97,7 +97,7 @@ int crypto_auth_run(struct fcrypt *fcr, struct kernel_crypt_auth_op *kcaop);
 int crypto_run(struct fcrypt *fcr, struct kernel_crypt_op *kcop);
 int hash_run(struct kernel_hash_op *khop);
 
-#include <cryptlib.h>
+#include "cryptlib.h"
 
 /* Cryptodev Key operation handler */
 int crypto_bn_modexp(struct cryptodev_pkc *);
