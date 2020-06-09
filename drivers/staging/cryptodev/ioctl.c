@@ -1754,7 +1754,7 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		ret = crypto_auth_run(fcr, &kcaop);
 		if (unlikely(ret)) {
 			dwarning(1, "Error in crypto_auth_run");
-			return ret;
+			return -EINVAL;
 		}
 		return kcaop_to_user(&kcaop, fcr, arg);
 #ifdef ENABLE_ASYNC
