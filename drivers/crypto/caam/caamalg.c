@@ -1052,6 +1052,8 @@ static void init_gcm_job(struct aead_request *req,
 	if (!generic_gcm)
 		append_data(desc, ctx->key + ctx->cdata.keylen, 4);
 	/* Append IV */
+	if (!req->iv[0] && !req->iv[1] && !req->iv[2])
+		req->iv[0] = 0x80;
 	append_data(desc, req->iv, ivsize);
 	/* End of blank commands */
 }
