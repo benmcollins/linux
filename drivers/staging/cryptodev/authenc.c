@@ -811,24 +811,6 @@ int crypto_auth_run(struct fcrypt *fcr, struct kernel_crypt_auth_op *kcaop)
 	cryptodev_cipher_set_iv(&ses_ptr->cdata, kcaop->iv,
 				min(ses_ptr->cdata.ivsize, kcaop->ivlen));
 
-	if (!(caop->flags & COP_FLAG_NO_ZC)) {
-		caop->flags |= COP_FLAG_NO_ZC;
-
-		if (unlikely(ses_ptr->alignmask && !IS_ALIGNED((unsigned long)caop->src, ses_ptr->alignmask))) {
-			dwarning(2, "source address %p is not %d byte aligned - disabling zero copy",
-				 caop->src, ses_ptr->alignmask + 1);
-			caop->flags |= COP_FLAG_NO_ZC;
-		}
-
-		if (unlikely(ses_ptr->alignmask && !IS_ALIGNED((unsigned long)caop->dst, ses_ptr->alignmask))) {
-			dwarning(2, "destination address %p is not %d byte aligned - disabling zero copy",
-				 caop->dst, ses_ptr->alignmask + 1);
-			caop->flags |= COP_FLAG_NO_ZC;
-		}
-
-		caop->flags |= COP_FLAG_NO_ZC;
-	}
-
 	ret = __crypto_auth_run(ses_ptr, kcaop);
 	if (unlikely(ret)) {
 		derr(1, "error in __crypto_auth_run)");
