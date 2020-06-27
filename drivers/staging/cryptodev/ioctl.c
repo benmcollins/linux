@@ -71,8 +71,6 @@ int cryptodev_verbosity;
 module_param(cryptodev_verbosity, int, 0644);
 MODULE_PARM_DESC(cryptodev_verbosity, "0: normal, 1: verbose, 2: debug");
 
-#define GFP_DMA_BUFFER		1024
-
 /* ====== CryptoAPI ====== */
 struct todo_list_item {
 	struct list_head __hook;
@@ -1113,18 +1111,9 @@ static void prf_req_free(struct prf_req_s **__req)
 	if (req == NULL)
 		return;
 
-	switch (req->prf_op) {
-	case GEN_MASTER_SECRET:
-	case GEN_SESSION_KEYS:
-	case GEN_FINISH_RAND:
-		kfree(req->dma_buf);
-		break;
-	default:
-		pr_err(PFX"cryptodev memory leak !!!");
-		break;
-	}
-
+	kzfree(req->dma_buf);
 	kzfree(req);
+
 	*__req = NULL;
 
 	return;
@@ -1142,7 +1131,7 @@ int get_gen_session_key_param(struct prf_req_s *req, struct prf_param *prfiop)
 			+ in->out_client_write_key.len
 			+ in->out_server_write_key.len
 			+ in->out_client_write_iv.len
-			+ in->out_server_write_iv.len + GFP_DMA_BUFFER);
+			+ in->out_server_write_iv.len);
 
 	if (!in->out_client_mac_secret.black_key)
 		req->dma_len += (2 * PRF_ENC_HMAC_SECRET_LEN);
@@ -1243,11 +1232,11 @@ static int copy_session_req_to_ms_req(struct prf_req_s *ms_req,
 
 	ms_req->prf_op = GEN_MASTER_SECRET;
 	ms_req->tls_version = req->tls_version;
-	req->dma_len = (in->label.len + in->master_secret.len + in->server_rand.len
+	ms_req->dma_len = (in->label.len + in->master_secret.len + in->server_rand.len
 			+ in->client_rand.len + in->out_client_mac_secret.len
 			+ 128);
-	req->dma_buf = kzalloc(req->dma_len, GFP_KERNEL);
-	if (!req->dma_buf)
+	ms_req->dma_buf = kzalloc(req->dma_len, GFP_KERNEL);
+	if (!ms_req->dma_buf)
 		return -ENOMEM;
 
 	out->pre_master_secret.len = in->master_secret.len;
@@ -1310,10 +1299,11 @@ int get_gen_ms_param(struct prf_req_s *req, struct prf_param *prfiop)
 		(in_ms_param->label.len > PRF_LABEL_MAX))
 		return -EINVAL;
 
-	req->dma_len = (in_ms_param->label.len + in_ms_param->pre_master_secret.len
-			+ gen_ms->server_rand.len +
-			gen_ms->client_rand.len +
-			gen_ms->out_master_secret.len + GFP_DMA_BUFFER);
+	req->dma_len = (in_ms_param->label.len +
+			in_ms_param->pre_master_secret.len +
+			in_ms_param->server_rand.len +
+			in_ms_param->client_rand.len +
+			in_ms_param->out_master_secret.len);
 
 	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
 	if (!req->dma_buf)
@@ -1379,10 +1369,11 @@ int get_gen_finish_param(struct prf_req_s *req, struct prf_param *prfiop)
 		(in_finish->label.len > PRF_LABEL_MAX))
 		return -EINVAL;
 
-	req->dma_len = (in_finish->label.len + in_finish->master_secret.len
-			+ gen_finish->seed1.len +
-			gen_finish->seed2.len +
-			gen_finish->out_data.len + GFP_DMA_BUFFER);
+	req->dma_len = (in_finish->label.len +
+			in_finish->master_secret.len +
+			in_finish->seed1.len +
+			in_finish->seed2.len +
+			in_finish->out_data.len);
 	req->dma_buf = kzalloc(req->dma_len, GFP_DMA);
 	if (!req->dma_buf)
 		return -ENOMEM;
@@ -1459,7 +1450,7 @@ static struct prf_req_s *get_and_validate_prf_param(struct prf_param *prfiop)
 		break;
 	case GEN_FINISH_RAND:
 		if (get_gen_finish_param(req, prfiop)) {
-			kfree(req);
+			prf_req_free(&req);
 			pr_err(PFX"get_gen_finish_param failed!");
 			return NULL;
 		}
@@ -1769,7 +1760,7 @@ cryptodev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg_)
 		}
 
 		ret = crypto_async_run(pcr, kcop);
-		kree(kcop);
+		kfree(kcop);
 		return ret;
 	case CIOCASYNCFETCH:
 		kcop = kmalloc(sizeof(*kcop), GFP_DMA);
