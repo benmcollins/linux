@@ -1245,7 +1245,7 @@ static int copy_session_req_to_ms_req(struct prf_req_s *ms_req,
 	out->client_rand.len = in->client_rand.len;
 	out->out_master_secret.len = 128;
 
-	out->label.param = req->dma_buf;
+	out->label.param = ms_req->dma_buf;
 	out->pre_master_secret.param = out->label.param + out->label.len;
 	out->server_rand.param = out->pre_master_secret.param +
 						out->pre_master_secret.len;
