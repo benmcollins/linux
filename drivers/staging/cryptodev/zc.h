@@ -4,10 +4,21 @@
 #include "cryptodev_int.h"
 
 /* For zero copy */
+int __get_userbuf_withtag(uint8_t __user *addr, uint32_t len, uint8_t __user *tag, uint32_t tag_len, int write,
+		unsigned int pgcount, struct page **pg, struct scatterlist *sg,
+		struct task_struct *task, struct mm_struct *mm);
 int __get_userbuf(uint8_t __user *addr, uint32_t len, int write,
 		unsigned int pgcount, struct page **pg, struct scatterlist *sg,
 		struct task_struct *task, struct mm_struct *mm);
 void release_user_pages(struct csession *ses);
+
+int get_userbuf_withtag(struct csession *ses,
+                void *__user src, unsigned int src_len,
+                void *__user tag, unsigned int tag_len,
+                void *__user dst, unsigned int dst_len,
+                struct task_struct *task, struct mm_struct *mm,
+                struct scatterlist **src_sg,
+                struct scatterlist **dst_sg);
 
 int get_userbuf(struct csession *ses,
                 void *__user src, unsigned int src_len,

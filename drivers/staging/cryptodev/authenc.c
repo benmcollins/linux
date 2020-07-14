@@ -740,8 +740,15 @@ __crypto_auth_run(struct csession *ses_ptr, struct kernel_crypt_auth_op *kcaop)
 					goto free_bufs;
 				}
 			} else {
-				ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
-						  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
+
+				if (caop->op == COP_DECRYPT && caop->tag) {
+					ret = get_userbuf_withtag(ses_ptr, caop->src, caop->len, caop->tag, caop->tag_len, caop->dst, kcaop->dst_len,
+							  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
+					caop->len += caop->tag_len;
+				} else {
+					ret = get_userbuf(ses_ptr, caop->src, caop->len, caop->dst, kcaop->dst_len,
+							  kcaop->task, kcaop->mm, &src_sg, &dst_sg);
+				}
 
 				if (unlikely(ret)) {
 					derr(1, "get_userbuf(): Error getting user pages.");

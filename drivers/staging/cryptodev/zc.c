@@ -46,6 +46,68 @@
 #define PAGEOFFSET(buf) ((unsigned long)buf & ~PAGE_MASK)
 
 /* fetch the pages addr resides in into pg and initialise sg with them */
+int __get_userbuf_withtag(uint8_t __user *addr, uint32_t len, uint8_t __user *tag_addr, uint32_t tag_len, int write,
+		unsigned int pgcount, struct page **pg, struct scatterlist *sg,
+		struct task_struct *task, struct mm_struct *mm)
+{
+	int ret, pglen, i = 0;
+	struct scatterlist *sgp;
+	unsigned int tag_pgcount = PAGECOUNT(tag_addr, tag_len);
+
+	if (unlikely(!pgcount || !len || !addr)) {
+		sg_mark_end(sg);
+		return 0;
+	}
+
+	down_read(&mm->mmap_sem);
+
+	ret = get_user_pages_remote(task, mm,
+			(unsigned long)addr, pgcount - tag_pgcount, write ? FOLL_WRITE : 0,
+			pg, NULL, NULL);
+
+	if (ret != (pgcount - tag_pgcount)) {
+		up_read(&mm->mmap_sem);
+		return -EINVAL;
+	}
+
+	ret = get_user_pages_remote(task, mm,
+			(unsigned long)tag_addr, tag_pgcount, write ? FOLL_WRITE : 0,
+			pg + pgcount - 1, NULL, NULL);
+
+	if (ret != tag_pgcount) {
+		up_read(&mm->mmap_sem);
+		return -EINVAL;
+	}
+
+	up_read(&mm->mmap_sem);
+
+	sg_init_table(sg, pgcount);
+
+	pglen = min((ptrdiff_t)(PAGE_SIZE - PAGEOFFSET(addr)), (ptrdiff_t)len);
+	sg_set_page(sg, pg[i++], pglen, PAGEOFFSET(addr));
+
+	len -= pglen;
+	for (sgp = sg_next(sg); len; sgp = sg_next(sgp)) {
+		pglen = min((uint32_t)PAGE_SIZE, len);
+		sg_set_page(sgp, pg[i++], pglen, 0);
+		len -= pglen;
+	}
+
+	/* tag handling */
+	pglen = min((ptrdiff_t)(PAGE_SIZE - PAGEOFFSET(tag_addr)), (ptrdiff_t)tag_len);
+	sg_set_page(sgp, pg[i++], pglen, PAGEOFFSET(tag_addr));
+
+	tag_len -= pglen;
+	if (tag_len) {
+		sgp = sg_next(sgp);
+		sg_set_page(sgp, pg[i++], tag_len, 0);
+	}
+
+	sg_mark_end(sg_last(sg, pgcount));
+	return 0;
+}
+
+/* fetch the pages addr resides in into pg and initialise sg with them */
 int __get_userbuf(uint8_t __user *addr, uint32_t len, int write,
 		unsigned int pgcount, struct page **pg, struct scatterlist *sg,
 		struct task_struct *task, struct mm_struct *mm)
@@ -135,6 +197,94 @@ void release_user_pages(struct csession *ses)
 		put_page(ses->pages[i]);
 	}
 	ses->used_pages = 0;
+}
+
+/* make src and dst available in scatterlists.
+ * dst might be the same as src.
+ */
+int get_userbuf_withtag(struct csession *ses,
+                void *__user src, unsigned int src_len,
+                void *__user tag, unsigned int tag_len,
+                void *__user dst, unsigned int dst_len,
+                struct task_struct *task, struct mm_struct *mm,
+                struct scatterlist **src_sg,
+                struct scatterlist **dst_sg)
+{
+	int src_pagecount, dst_pagecount;
+	int rc;
+
+	/* Empty input is a valid option to many algorithms & is tested by NIST/FIPS */
+	/* Make sure NULL input has 0 length */
+	if (!src && src_len)
+		src_len = 0;
+
+	/* I don't know that null output is ever useful, but we can handle it gracefully */
+	/* Make sure NULL output has 0 length */
+	if (!dst && dst_len)
+		dst_len = 0;
+
+	src_pagecount = PAGECOUNT(src, src_len);
+	dst_pagecount = PAGECOUNT(dst, dst_len);
+
+	/* Add pages for tag */
+	src_pagecount += PAGECOUNT(tag, tag_len);
+
+	ses->used_pages = (src == dst) ? max(src_pagecount, dst_pagecount)
+	                               : src_pagecount + dst_pagecount;
+
+	ses->readonly_pages = (src == dst) ? 0 : src_pagecount;
+
+	if (ses->used_pages > ses->array_size) {
+		rc = adjust_sg_array(ses, ses->used_pages);
+		if (rc)
+			return rc;
+	}
+
+	if (src == dst) {	/* inplace operation */
+		/* When we encrypt for authenc modes we need to write
+		 * more data than the ones we read. */
+		if (src_len < dst_len)
+			src_len = dst_len;
+
+		rc = __get_userbuf_withtag(src, src_len, tag, tag_len, 1, ses->used_pages,
+			               ses->pages, ses->sg, task, mm);
+		if (unlikely(rc)) {
+			derr(1, "failed to get user pages for data IO");
+			return rc;
+		}
+
+		(*src_sg) = (*dst_sg) = ses->sg;
+		return 0;
+	}
+
+	*src_sg = NULL; /* default to no input */
+	*dst_sg = NULL; /* default to ignore output */
+
+	if (likely(src)) {
+		rc = __get_userbuf_withtag(src, src_len, tag, tag_len, 0, ses->readonly_pages,
+					   ses->pages, ses->sg, task, mm);
+		if (unlikely(rc)) {
+			derr(1, "failed to get user pages for data input");
+			return rc;
+		}
+		*src_sg = ses->sg;
+	}
+
+	if (likely(dst)) {
+		const unsigned int writable_pages =
+			ses->used_pages - ses->readonly_pages;
+		struct page **dst_pages = ses->pages + ses->readonly_pages;
+		*dst_sg = ses->sg + ses->readonly_pages;
+
+		rc = __get_userbuf(dst, dst_len, 1, writable_pages,
+					   dst_pages, *dst_sg, task, mm);
+		if (unlikely(rc)) {
+			derr(1, "failed to get user pages for data output");
+			release_user_pages(ses);  /* FIXME: use __release_userbuf(src, ...) */
+			return rc;
+		}
+	}
+	return 0;
 }
 
 /* make src and dst available in scatterlists.
