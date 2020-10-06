@@ -236,8 +236,11 @@ int get_userbuf_withtag(struct csession *ses,
 
 	if (ses->used_pages > ses->array_size) {
 		rc = adjust_sg_array(ses, ses->used_pages);
-		if (rc)
+		if (rc) {
+			/* No pages used */
+			ses->used_pages = 0;
 			return rc;
+		}
 	}
 
 	if (src == dst) {	/* inplace operation */
@@ -249,6 +252,8 @@ int get_userbuf_withtag(struct csession *ses,
 		rc = __get_userbuf_withtag(src, src_len, tag, tag_len, 1, ses->used_pages,
 			               ses->pages, ses->sg, task, mm);
 		if (unlikely(rc)) {
+			/* No pages used */
+			ses->used_pages = 0;
 			derr(1, "failed to get user pages for data IO");
 			return rc;
 		}
@@ -264,6 +269,8 @@ int get_userbuf_withtag(struct csession *ses,
 		rc = __get_userbuf_withtag(src, src_len, tag, tag_len, 0, ses->readonly_pages,
 					   ses->pages, ses->sg, task, mm);
 		if (unlikely(rc)) {
+			/* No pages used */
+			ses->used_pages = 0;
 			derr(1, "failed to get user pages for data input");
 			return rc;
 		}
@@ -279,6 +286,8 @@ int get_userbuf_withtag(struct csession *ses,
 		rc = __get_userbuf(dst, dst_len, 1, writable_pages,
 					   dst_pages, *dst_sg, task, mm);
 		if (unlikely(rc)) {
+			/* only source pages (readonly_pages) need to be freed */
+			ses->used_pages = ses->readonly_pages;
 			derr(1, "failed to get user pages for data output");
 			release_user_pages(ses);  /* FIXME: use __release_userbuf(src, ...) */
 			return rc;
@@ -320,8 +329,11 @@ int get_userbuf(struct csession *ses,
 
 	if (ses->used_pages > ses->array_size) {
 		rc = adjust_sg_array(ses, ses->used_pages);
-		if (rc)
+		if (rc) {
+			/* No pages used */
+			ses->used_pages = 0;
 			return rc;
+		}
 	}
 
 	if (src == dst) {	/* inplace operation */
@@ -332,6 +344,8 @@ int get_userbuf(struct csession *ses,
 		rc = __get_userbuf(src, src_len, 1, ses->used_pages,
 			               ses->pages, ses->sg, task, mm);
 		if (unlikely(rc)) {
+			/* No pages used */
+			ses->used_pages = 0;
 			derr(1, "failed to get user pages for data IO");
 			return rc;
 		}
@@ -346,6 +360,8 @@ int get_userbuf(struct csession *ses,
 		rc = __get_userbuf(src, src_len, 0, ses->readonly_pages,
 					   ses->pages, ses->sg, task, mm);
 		if (unlikely(rc)) {
+			/* No pages used */
+			ses->used_pages = 0;
 			derr(1, "failed to get user pages for data input");
 			return rc;
 		}
@@ -361,6 +377,8 @@ int get_userbuf(struct csession *ses,
 		rc = __get_userbuf(dst, dst_len, 1, writable_pages,
 					   dst_pages, *dst_sg, task, mm);
 		if (unlikely(rc)) {
+			/* only source pages (readonly_pages) need to be freed */
+			ses->used_pages = ses->readonly_pages;
 			derr(1, "failed to get user pages for data output");
 			release_user_pages(ses);  /* FIXME: use __release_userbuf(src, ...) */
 			return rc;
