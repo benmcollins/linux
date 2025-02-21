@@ -7002,15 +7002,16 @@ static int megasas_io_attach(struct megasas_instance *instance)
 static int
 megasas_set_dma_mask(struct megasas_instance *instance)
 {
-	u64 consistent_mask;
+	u64 consistent_mask, req_mask;
 	struct pci_dev *pdev;
 	u32 scratch_pad_1;
 
 	pdev = instance->pdev;
 	consistent_mask = (instance->adapter_type >= VENTURA_SERIES) ?
 				DMA_BIT_MASK(63) : DMA_BIT_MASK(32);
+	req_mask = dma_get_required_mask(&pdev->dev);
 
-	if (IS_DMA64) {
+	if (req_mask == DMA_BIT_MASK(64) && consistent_mask == DMA_BIT_MASK(63)) {
 		if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(63)) &&
 		    dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32)))
 			goto fail_set_dma_mask;
@@ -7034,10 +7035,10 @@ megasas_set_dma_mask(struct megasas_instance *instance)
 	} else if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32)))
 		goto fail_set_dma_mask;
 
-	if (pdev->dev.coherent_dma_mask == DMA_BIT_MASK(32))
-		instance->consistent_mask_64bit = false;
-	else
+	if (pdev->dev.coherent_dma_mask == DMA_BIT_MASK(63))
 		instance->consistent_mask_64bit = true;
+	else
+		instance->consistent_mask_64bit = false;
 
 	dev_info(&pdev->dev, "%s bit DMA mask and %s bit consistent mask\n",
 		 ((*pdev->dev.dma_mask == DMA_BIT_MASK(63)) ? "63" : "32"),
