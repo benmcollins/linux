@@ -12,6 +12,114 @@
 #include <asm/msi_bitmap.h>
 #include <asm/setup.h>
 
+/**
+ * msi_bitmap_hwirqs_used - Returns the number of IRQs allocated.
+ * @bmp: pointer to the MSI bitmap.
+ *
+ * This is only an indicator for comparing MSI devices to see which ones
+ * have a heavier load.
+ *
+ * Returns the number of IRQs in use.
+ */
+int msi_bitmap_hwirqs_used(struct msi_bitmap *bmp)
+{
+	unsigned long flags;
+	int weight;
+
+	spin_lock_irqsave(&bmp->lock, flags);
+	weight = bitmap_weight(bmp->bitmap, bmp->irq_count);
+	spin_unlock_irqrestore(&bmp->lock, flags);
+
+	return weight;
+}
+EXPORT_SYMBOL(msi_bitmap_hwirqs_used);
+
+/**
+ * msi_bitmap_has_hwirqs - Check if bitmap can allocate num IRQs
+ * @bmp: pointer to the MSI bitmap.
+ * @num: number of IRQs to verify.
+ *
+ * Returns 1 success, 0 if there's no room for the request.
+ */
+int msi_bitmap_has_hwirqs(struct msi_bitmap *bmp, int num)
+{
+	unsigned long flags;
+	int offset, order = get_count_order(num);
+	int rc = 0;
+
+	spin_lock_irqsave(&bmp->lock, flags);
+
+	offset = bitmap_find_next_zero_area(bmp->bitmap, bmp->irq_count, 0,
+					    num, (1 << order) - 1);
+
+	if (offset < bmp->irq_count)
+		rc = 1;
+
+	spin_unlock_irqrestore(&bmp->lock, flags);
+
+	return rc;
+}
+EXPORT_SYMBOL(msi_bitmap_has_hwirqs);
+
+/**
+ * msi_bitmap_alloc_hwirqs_balanced - Allocate IRQs in a low-use areas
+ * @bmp: pointer to the MSI bitmap.
+ * @num_pools: Number of areas in bitmap (usually irq_count / IRQS_PER_MSI_REG).
+ * @num: number of IRQs to allocate.
+ *
+ * This allows for some balancing within an MSI region. For QorIQ, any IRQ on
+ * the same cascade (pool), are all locked to the same CPU, which means the
+ * first 32 (IRQS_PER_MSI_REG) MSIs will not balance at all.
+ *
+ * Returns first hwirq for num of irqs for success, < 0 if there was an error.
+ */
+int msi_bitmap_alloc_hwirqs_balanced(struct msi_bitmap *bmp, int num_pools, int num)
+{
+	unsigned long flags;
+	int order = get_count_order(num);
+	int pool_index, pool_size;
+	int weight, cur_offset;
+
+	spin_lock_irqsave(&bmp->lock, flags);
+
+	pool_size = bmp->irq_count / num_pools;
+	weight = pool_size + 1;
+	cur_offset = -1;
+
+	for (pool_index = 0; pool_index < num_pools; pool_index++) {
+		unsigned long off_this = pool_index * pool_size;
+		unsigned long bits = bitmap_read(bmp->bitmap,
+				off_this, pool_size);
+		int offset, t = hweight_long(bits);
+
+		if (t > weight)
+			continue;
+
+		offset = bitmap_find_next_zero_area(bmp->bitmap, bmp->irq_count,
+					off_this, num, (1 << order) - 1);
+
+		if (offset >= ((pool_index + 1) * pool_size) || offset > bmp->irq_count)
+			continue;
+
+		weight = t;
+		cur_offset = offset;
+	}
+
+	if (cur_offset < 0)
+		goto err;
+
+	bitmap_set(bmp->bitmap, cur_offset, num);
+	spin_unlock_irqrestore(&bmp->lock, flags);
+
+	pr_debug("msi_bitmap: allocated 0x%x at offset 0x%x\n", num, cur_offset);
+
+	return cur_offset;
+err:
+	spin_unlock_irqrestore(&bmp->lock, flags);
+	return -ENOSPC;
+}
+EXPORT_SYMBOL(msi_bitmap_alloc_hwirqs_balanced);
+
 int msi_bitmap_alloc_hwirqs(struct msi_bitmap *bmp, int num)
 {
 	unsigned long flags;

@@ -49,6 +49,7 @@ struct fsl_msi_feature {
 
 struct fsl_msi_cascade_data {
 	struct fsl_msi *msi_data;
+	char name[64];
 	int index;
 	int virq;
 };
@@ -176,94 +177,118 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 		 (hwirq >> msi_data->ibs_shift) & MSI_IBS_MASK);
 }
 
+static const char * const of_msi_match[] = {
+	"fsl,mpic-msi",
+	"fsl,mpic-msi-v4.3",
+	"fsl,vmpic-msi",
+	"fsl,vmpic-msi-v4.3",
+	NULL,
+};
+
 static int fsl_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
 {
 	struct pci_controller *hose = pci_bus_to_host(pdev->bus);
-	struct device_node *np;
 	phandle phandle = 0;
-	int rc, hwirq = -ENOMEM;
-	unsigned int virq;
 	struct msi_desc *entry;
-	struct msi_msg msg;
-	struct fsl_msi *msi_data;
+	struct device_node *np;
+	int rc = 0;
 
-	if (type == PCI_CAP_ID_MSI) {
-		/*
-		 * MPIC version 2.0 has erratum PIC1. For now MSI
-		 * could not work. So check to prevent MSI from
-		 * being used on the board with this erratum.
-		 */
-		list_for_each_entry(msi_data, &msi_head, list)
-			if (msi_data->feature & MSI_HW_ERRATA_ENDIAN)
-				return -EINVAL;
-	}
+	dev_dbg(&pdev->dev, "setting up MSI irqs type[%i] nvec[%i]\n", type, nvec);
 
 	/*
 	 * If the PCI node has an fsl,msi property, then we need to use it
-	 * to find the specific MSI.
+	 * to find the specific MSI. This is legacy, and only used for ePAPR.
 	 */
 	np = of_parse_phandle(hose->dn, "fsl,msi", 0);
 	if (np) {
-		if (of_device_is_compatible(np, "fsl,mpic-msi") ||
-		    of_device_is_compatible(np, "fsl,vmpic-msi") ||
-		    of_device_is_compatible(np, "fsl,vmpic-msi-v4.3"))
+		if (of_device_compatible_match(np, of_msi_match)) {
+			dev_dbg(&pdev->dev, "fsl,msi matched with %pOF\n", np);
 			phandle = np->phandle;
-		else {
-			dev_err(&pdev->dev,
-				"node %pOF has an invalid fsl,msi phandle %u\n",
-				hose->dn, np->phandle);
+		} else {
+			dev_err(&pdev->dev, "fsl,msi %pOF does not match\n", np);
 			of_node_put(np);
 			return -EINVAL;
 		}
-		of_node_put(np);
+	} else {
+		dev_dbg(&pdev->dev, "no fsl,msi for %pOF\n", hose->dn);
 	}
 
+	dev_dbg(&pdev->dev, "number of msi_data entries to search [%i]\n",
+		list_count_nodes(&msi_head));
+
 	msi_for_each_desc(entry, &pdev->dev, MSI_DESC_NOTASSOCIATED) {
+		struct fsl_msi *msi_data = NULL, *next;
+		int weight = NR_MSI_IRQS_MAX + 1;
+		int hwirq = -ENOSPC;
+		unsigned int virq;
+		struct msi_msg msg;
+
+		nvec--;
+
 		/*
-		 * Loop over all the MSI devices until we find one that has an
-		 * available interrupt.
+		 * Loop over all the MSI devices until we find one that has the
+		 * least used interrupts, for balancing.
 		 */
-		list_for_each_entry(msi_data, &msi_head, list) {
-			/*
-			 * If the PCI node has an fsl,msi property, then we
-			 * restrict our search to the corresponding MSI node.
-			 * The simplest way is to skip over MSI nodes with the
-			 * wrong phandle. Under the Freescale hypervisor, this
-			 * has the additional benefit of skipping over MSI
-			 * nodes that are not mapped in the PAMU.
-			 */
-			if (phandle && (phandle != msi_data->phandle))
+		list_for_each_entry(next, &msi_head, list) {
+			int t;
+
+			/* For erratum PIC1 on MPIC version 2.0 */
+			if (type == PCI_CAP_ID_MSI && next->feature & MSI_HW_ERRATA_ENDIAN)
 				continue;
 
-			hwirq = msi_bitmap_alloc_hwirqs(&msi_data->bitmap, 1);
-			if (hwirq >= 0)
-				break;
+			/*
+			 * phandle matching for ePAPR allows skipping over
+			 * msi that are not maped with pamu.
+			 */
+			if (phandle && (phandle != next->phandle))
+				continue;
+
+			if (!msi_bitmap_has_hwirqs(&next->bitmap, 1))
+				continue;
+
+			t = msi_bitmap_hwirqs_used(&next->bitmap);
+			if (t > weight)
+				continue;
+
+			weight = t;
+			msi_data = next;
+		}
+
+		if (msi_data) {
+			dev_dbg(&pdev->dev, "found MSI desc %i, weight[%i]\n",
+				msi_data->phandle, weight);
+			hwirq = msi_bitmap_alloc_hwirqs_balanced(&msi_data->bitmap,
+					msi_data->bitmap.irq_count / IRQS_PER_MSI_REG, 1);
 		}
 
 		if (hwirq < 0) {
-			rc = hwirq;
 			dev_err(&pdev->dev, "could not allocate MSI interrupt\n");
+			rc = hwirq;
 			goto out_free;
 		}
 
 		virq = irq_create_mapping(msi_data->irqhost, hwirq);
 
 		if (!virq) {
-			dev_err(&pdev->dev, "fail mapping hwirq %i\n", hwirq);
+			dev_err(&pdev->dev, "failed mapping hwirq %i\n", hwirq);
 			msi_bitmap_free_hwirqs(&msi_data->bitmap, hwirq, 1);
 			rc = -ENOSPC;
 			goto out_free;
 		}
+
 		/* chip_data is msi_data via host->hostdata in host->map() */
 		irq_set_msi_desc(virq, entry);
 
 		fsl_compose_msi_msg(pdev, hwirq, &msg, msi_data);
 		pci_write_msi_msg(virq, &msg);
-	}
-	return 0;
 
+		if (nvec == 0)
+			break;
+	}
+
+	WARN_ON(nvec);
 out_free:
-	/* free by the caller of this function */
+
 	return rc;
 }
 
@@ -371,10 +396,12 @@ static int fsl_msi_setup_hwirq(struct fsl_msi *msi, struct platform_device *dev,
 	cascade_data->index = offset;
 	cascade_data->msi_data = msi;
 	cascade_data->virq = virt_msir;
+	snprintf(cascade_data->name, sizeof(cascade_data->name) - 1,
+		"fsl-msi-cascade-%i", offset);
 	msi->cascade_array[irq_index] = cascade_data;
 
 	ret = request_irq(virt_msir, fsl_msi_cascade, IRQF_NO_THREAD,
-			  "fsl-msi-cascade", cascade_data);
+			  cascade_data->name, cascade_data);
 	if (ret) {
 		dev_err(&dev->dev, "failed to request_irq(%d), ret = %d\n",
 			virt_msir, ret);
@@ -389,7 +416,6 @@ static int fsl_msi_setup_hwirq(struct fsl_msi *msi, struct platform_device *dev,
 	return 0;
 }
 
-static const struct of_device_id fsl_of_msi_ids[];
 static int fsl_of_msi_probe(struct platform_device *dev)
 {
 	struct fsl_msi *msi;
@@ -403,7 +429,7 @@ static int fsl_of_msi_probe(struct platform_device *dev)
 
 	features = device_get_match_data(&dev->dev);
 
-	printk(KERN_DEBUG "Setting up Freescale MSI support\n");
+	dev_info(&dev->dev, "Setting up Freescale MSI support\n");
 
 	msi = kzalloc(sizeof(struct fsl_msi), GFP_KERNEL);
 	if (!msi) {
@@ -480,7 +506,7 @@ static int fsl_of_msi_probe(struct platform_device *dev)
 		msi->srs_shift = MSIIR1_SRS_SHIFT;
 		msi->ibs_shift = MSIIR1_IBS_SHIFT;
 		if (p)
-			dev_warn(&dev->dev, "%s: dose not support msi-available-ranges property\n",
+			dev_warn(&dev->dev, "%s: does not support msi-available-ranges property\n",
 				__func__);
 
 		for (irq_index = 0; irq_index < NR_MSI_REG_MSIIR1;
