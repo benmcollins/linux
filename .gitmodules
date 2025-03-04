@@ -1,3 +1,0 @@
-[submodule "drivers/staging/cyphre-crypto"]
-	path = drivers/staging/cyphre-crypto
-	url = git@github.com:cyphre-llc/skmm-host.git

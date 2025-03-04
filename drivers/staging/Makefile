@@ -54,4 +54,3 @@ obj-$(CONFIG_STAGING_GASKET_FRAMEWORK)	+= gasket/
 obj-$(CONFIG_XIL_AXIS_FIFO)	+= axis-fifo/
 obj-$(CONFIG_EROFS_FS)		+= erofs/
 obj-$(CONFIG_CRYPTODEV)		+= cryptodev/
-obj-$(CONFIG_FSL_C2X0_CRYPTO_DRV) += cyphre-crypto/
