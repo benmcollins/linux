@@ -60,6 +60,7 @@ static int qoriq_efuse_probe(struct platform_device *pdev)
 
 static const struct of_device_id qoriq_efuse_of_match[] = {
 	{ .compatible = "fsl,t1023-sfp", },
+	{ .compatible = "fsl,qoriq-sfp-1.0", },
 	{/* sentinel */},
 };
 MODULE_DEVICE_TABLE(of, qoriq_efuse_of_match);
