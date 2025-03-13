@@ -35,12 +35,7 @@ set_debarch() {
 	s390*)
 		debarch=s390x ;;
 	ppc*)
-		if is_enabled CONFIG_64BIT; then
-			debarch=ppc64$(if_enabled_echo CONFIG_CPU_LITTLE_ENDIAN el)
-		else
-			debarch=powerpc$(if_enabled_echo CONFIG_SPE spe)
-		fi
-		;;
+		debarch=powerpc;;
 	parisc*)
 		debarch=hppa ;;
 	mips*)
@@ -155,7 +150,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Some variables and settings used throughout the script
-version=$KERNELRELEASE
+version=${KDEB_PACKAGEEXT:-$KERNELRELEASE}
 if [ "${KDEB_PKGVERSION:+set}" ]; then
 	packageversion=$KDEB_PKGVERSION
 else
@@ -206,17 +201,15 @@ Maintainer: $maintainer
 Rules-Requires-Root: no
 Build-Depends: debhelper-compat (= 12)
 Build-Depends-Arch: bc, bison, flex,
- gcc-${host_gnu} <!pkg.${sourcename}.nokernelheaders>,
- kmod, libelf-dev:native,
- libssl-dev:native, libssl-dev <!pkg.${sourcename}.nokernelheaders>,
- python3:native, rsync
+ gcc:native, kmod, libelf-dev:native,
+ libssl-dev:native, python3:native, rsync
 Homepage: https://www.kernel.org/
 
 Package: $packagename-$version
 Architecture: $debarch
-Description: Linux kernel, version $version
+Description: Linux kernel, version $packageversion
  This package contains the Linux kernel, modules and corresponding other
- files, version: $version.
+ files, version: $packageversion.
 EOF
 
 if [ "${SRCARCH}" != um ]; then
@@ -238,8 +231,8 @@ cat <<EOF >> debian/control
 Package: linux-headers-$version
 Architecture: $debarch
 Build-Profiles: <!pkg.${sourcename}.nokernelheaders>
-Description: Linux kernel headers for $version on $debarch
- This package provides kernel header files for $version on $debarch
+Description: Linux kernel headers for $packageversion on $debarch
+ This package provides kernel header files for $packageversion on $debarch
  .
  This is useful for people who need to build external modules
 EOF
@@ -253,7 +246,7 @@ Package: linux-image-$version-dbg
 Section: debug
 Architecture: $debarch
 Build-Profiles: <!pkg.${sourcename}.nokerneldbg>
-Description: Linux kernel debugging symbols for $version
+Description: Linux kernel debugging symbols for $packageversion
  This package will come in handy if you need to debug the kernel. It provides
  all the necessary debug symbols for the kernel and its modules.
 EOF

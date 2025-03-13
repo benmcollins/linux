@@ -1,0 +1,54 @@
+#!/bin/bash
+
+target=$1
+rev=6
+kver="$(make kernelversion)-svy-$rev"
+
+function usage()
+{
+	echo "Pick one of jade, jade-fw, yoda, or yoda-fw" 1>&2
+	exit 1
+}
+
+case "$1" in
+jade*)
+	export KDEB_PACKAGEEXT=jade
+	export KBUILD_IMAGE=arch/powerpc/boot/uImage
+	;;
+yoda*)
+	export KDEB_PACKAGEEXT=yoda
+	export KBUILD_IMAGE=arch/powerpc/boot/uImage
+	;;
+*)
+	usage
+esac
+
+case "$1" in
+*-fw)
+	image=uImage
+	;;
+*)
+	image=bindeb-pkg
+	export KDEB_CHANGELOG_DIST=trixie
+	export KDEB_SOURCENAME=linux-svy
+	export KDEB_PKGVERSION=$kver
+	export EMAIL="bcollins@kernel.org"
+	export NAME="Ben Collins"
+	;;
+esac
+
+cpus=`getconf _NPROCESSORS_ONLN`
+nway=`echo "($cpus * 15) / 10" | bc`
+dir="`pwd`/build-$target"
+
+export HOSTCC=gcc
+export CC=gcc
+
+export MAKEFLAGS="O=$dir -j$nway KERNELRELEASE=$kver"
+
+if ! test -f "$dir/.config"; then
+	test -d "$dir" || mkdir "$dir"
+	cp "svy-configs/$target" "$dir/.config"
+fi
+
+make $image
