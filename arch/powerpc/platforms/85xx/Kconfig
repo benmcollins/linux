@@ -215,7 +215,7 @@ config GE_IMP3A
 	  P2020 processor.
 
 config SGY_CTS1000
-	tristate "Servergy CTS-1000 support"
+	bool "Servergy CTS-1000 support"
 	select GPIOLIB
 	select OF_GPIO
 	depends on CORENET_GENERIC
@@ -263,6 +263,15 @@ config CORENET_GENERIC
 	    T208x QDS/RDB, T4240 QDS/RDB and B4 QDS
 	  The following boards are supported for both 32bit and 64bit kernel:
 	    P5020 DS, P5040 DS, T102x QDS/RDB, T104x QDS/RDB
+
+config VVDN_MFCS_T4240
+	bool "VVDN T4240 MFCS support"
+	select GPIOLIB
+	select OF_GPIO
+	select POWER_RESET_GPIO_RESTART
+	depends on CORENET_GENERIC
+	help
+	  Enable this to support functionality in VVDN's T4240 MFCS systems.
 
 endif # FSL_SOC_BOOKE
 

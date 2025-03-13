@@ -32,7 +32,7 @@ install_linux_image () {
 
 	# Only some architectures with OF support have this target
 	if is_enabled CONFIG_OF_EARLY_FLATTREE && [ -d "${srctree}/arch/${SRCARCH}/boot/dts" ]; then
-		${MAKE} -f ${srctree}/Makefile INSTALL_DTBS_PATH="${pdir}/usr/lib/linux-image-${KERNELRELEASE}" dtbs_install
+		${MAKE} -f ${srctree}/Makefile INSTALL_DTBS_PATH="${pdir}/boot/dtbs/${KERNELRELEASE}" dtbs_install
 	fi
 
 	${MAKE} -f ${srctree}/Makefile INSTALL_MOD_PATH="${pdir}" INSTALL_MOD_STRIP=1 modules_install
@@ -137,12 +137,11 @@ install_linux_image_dbg () {
 
 install_kernel_headers () {
 	pdir=debian/$1
-	version=${1#linux-headers-}
 
-	CC="${DEB_HOST_GNU_TYPE}-gcc" "${srctree}/scripts/package/install-extmod-build" "${pdir}/usr/src/linux-headers-${version}"
+	CC="${DEB_HOST_GNU_TYPE}-gcc" "${srctree}/scripts/package/install-extmod-build" "${pdir}/usr/src/linux-headers-${KERNELRELEASE}"
 
-	mkdir -p $pdir/lib/modules/$version/
-	ln -s /usr/src/linux-headers-$version $pdir/lib/modules/$version/build
+	mkdir -p $pdir/lib/modules/$KERNELRELEASE/
+	ln -s /usr/src/linux-headers-$KERNELRELEASE $pdir/lib/modules/$KERNELRELEASE/build
 }
 
 install_libc_headers () {
