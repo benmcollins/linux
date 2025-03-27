@@ -43,6 +43,14 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
+	aliases {
+		ethernet0 = &dtsec0;
+		ethernet1 = &tgec0;
+		ethernet2 = &tgec1;
+		ethernet3 = &tgec2;
+		ethernet4 = &tgec3;
+	};
+
 	ifc: localbus@ffe124000 {
 		reg = <0xf 0xfe124000 0 0x2000>;
 		ranges = <0 0 0xf 0xe8000000 0x08000000
@@ -136,7 +144,7 @@
 	};
 
 	dcsr: dcsr@f00000000 {
-		ranges = <0x00000000 0xf 0x00000000 0x01072000>;
+		ranges = <0x0 0xf 0x00000000 0x01072000>;
 	};
 
 	bportals: bman-portals@ff4000000 {
@@ -155,6 +163,11 @@
 			compatible = "gpio-restart";
 			gpios = <&gpio3 7 GPIO_ACTIVE_LOW>;
 			priority = <200>;
+		};
+
+		gpio-board-id {
+			compatible = "gpio-board-id";
+			gpios = <&gpio3 11 GPIO_OPEN_SOURCE>;
 		};
 
 		spi@110000 {
@@ -188,7 +201,52 @@
 		i2c@118100 {
 			mux@70 {
 				compatible = "nxp,pca9548";
+				#address-cells = <1>;
+				#size-cells = <0>;
 				reg = <0x70>;
+
+
+				i2c@1 {			/* SFP1 */
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+
+					eeprom@50 {
+						compatible = "at24,at24c128";
+						reg = <0x50>;
+					};
+				};
+
+				i2c@2 {			/* SFP2 */
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <2>;
+
+					eeprom@50 {
+						compatible = "at24,at24c128";
+						reg = <0x50>;
+					};
+				};
+				i2c@3 {			/*SFP3*/
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <3>;
+
+					eeprom@50 {
+						compatible = "at24,at24c128";
+						reg = <0x50>;
+					};
+				};
+				i2c@4 {			/* SFP4 */
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <4>;
+
+					eeprom@50 {
+						compatible = "at24,at24c128";
+						reg = <0x50>;
+					};
+				};
 			};
 		};
 
@@ -206,65 +264,6 @@
 
 		sdhc@114000 {
 			voltage-ranges = <1800 1800 3300 3300>;
-		};
-
-		fman@400000 {
-			ethernet@e0000 {
-				pcsphy-handle = <&pcs_phy1>;
-				pcs-handle-names = "sgmii";
-			};
-
-			ethernet@f0000 {
-				pcsphy-handle = <&pcs_xfiphy1>;
-				pcs-handle-names = "xgmii";
-			};
-
-			ethernet@f2000 {
-				pcsphy-handle = <&pcs_xfiphy2>;
-				pcs-handle-names = "xgmii";
-			};
-		};
-
-		fman@500000 {
-			ethernet@f0000 {
-				pcsphy-handle = <&pcs_xfiphy3>;
-				pcs-handle-names = "xgmii";
-			};
-
-			ethernet@f2000 {
-				pcsphy-handle = <&pcs_xfiphy4>;
-				pcs-handle-names = "xgmii";
-			};
-
-			mdio@fc000 {
-				fsl,erratum-a011043; /* must ignore read errors */
-				pcs_phy1: ethernet-phy@1 {
-					reg = <0x1>;
-				};
-			};
-
-			mdio@fd000 {
-				fsl,erratum-a011043; /* must ignore read errors */
-				pcs_xfiphy1: ethernet-phy@10 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x10>;
-				};
-
-				pcs_xfiphy2: ethernet-phy@11 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x11>;
-				};
-
-				pcs_xfiphy3: ethernet-phy@13 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x13>;
-				};
-
-				pcs_xfiphy4: ethernet-phy@12 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x12>;
-				};
-			};
 		};
 
 		iommu@20000 {
@@ -339,8 +338,6 @@
 				interrupts = <16 2 1 11>;
 			};
 		};
-
-		//include/ "qoriq-rmu-0.dtsi"
 	};
 
 	rio: rapidio@ffe0c0000 {
@@ -349,74 +346,111 @@
 		reg = <0xf 0xfe0c0000 0 0x11000>;
 
 		port1 {
-			ranges = <0 0 0xc 0x20000000 0 0x10000000>;
+			ranges = <0 0 0xc0 0x80000000 0 0x10000000>;
 			fsl,liodn-reg = <&guts 0x510>; /* RIO1LIODNR */
 		};
+
 		port2 {
-			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
+			ranges = <0 0 0xc0 0x90000000 0 0x10000000>;
 			fsl,liodn-reg = <&guts 0x514>; /* RIO2LIODNR */
 		};
 	};
 
 	pci0: pcie@ffe240000 {
 		reg = <0xf 0xfe240000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0x0 0x20000000
-			  0x01000000 0 0x00000000 0xf 0xf8000000 0x0 0x00010000>;
+		ranges = <0x02000000 0 0xe0000000 0xc0 0x00000000 0x0 0x40000000
+			  0x01000000 0 0x00000000 0x0f 0xf8000000 0x0 0x00020000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
-				  0 0x20000000
+				  0 0x40000000
 
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
-				  0 0x00010000>;
-		};
-	};
-
-	pci1: pcie@ffe250000 {
-		reg = <0xf 0xfe250000 0 0x10000>;
-		ranges = <0x02000000 0x0 0xe0000000 0xc 0x20000000 0x0 0x20000000
-			  0x01000000 0x0 0x00000000 0xf 0xf8010000 0x0 0x00010000>;
-		pcie@0 {
-			ranges = <0x02000000 0 0xe0000000
-				  0x02000000 0 0xe0000000
-				  0 0x20000000
-
-				  0x01000000 0 0x00000000
-				  0x01000000 0 0x00000000
-				  0 0x00010000>;
+				  0 0x00020000>;
 		};
 	};
 
 	pci2: pcie@ffe260000 {
-		reg = <0xf 0xfe260000 0 0x1000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x40000000 0 0x20000000
-			  0x01000000 0 0x00000000 0xf 0xf8020000 0 0x00010000>;
+		reg = <0xf 0xfe260000 0 0x10000>;
+		ranges = <0x02000000 0 0xe0000000 0xc0 0x40000000 0 0x40000000
+			  0x01000000 0 0x00000000 0x0f 0xf8020000 0 0x00020000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
-				  0 0x20000000
+				  0 0x40000000
 
 				  0x01000000 0 0x00000000
 				  0x01000000 0 0x00000000
-				  0 0x00010000>;
-		};
-	};
-
-	pci3: pcie@ffe270000 {
-		reg = <0xf 0xfe270000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x60000000 0 0x20000000
-			  0x01000000 0 0x00000000 0xf 0xf8030000 0 0x00010000>;
-		pcie@0 {
-			ranges = <0x02000000 0 0xe0000000
-				  0x02000000 0 0xe0000000
-				  0 0x20000000
-
-				  0x01000000 0 0x00000000
-				  0x01000000 0 0x00000000
-				  0 0x00010000>;
+				  0 0x00020000>;
 		};
 	};
 };
 
 /include/ "t4240si-post.dtsi"
+
+/* Needs to be here, otherwise it gets overriden with post include */
+/ {
+	soc@ffe000000 {
+		fman@400000 {
+			dtsec0: ethernet@e0000 {
+				pcsphy-handle = <&pcs_phy1>;
+				pcs-handle-names = "sgmii";
+			};
+
+			tgec0: ethernet@f0000 {
+				pcsphy-handle = <&pcs_xfiphy1>;
+				pcs-handle-names = "xgmii";
+			};
+
+			tgec1: ethernet@f2000 {
+				pcsphy-handle = <&pcs_xfiphy2>;
+				pcs-handle-names = "xgmii";
+			};
+		};
+
+		fman@500000 {
+			tgec2: ethernet@f0000 {
+				pcsphy-handle = <&pcs_xfiphy3>;
+				pcs-handle-names = "xgmii";
+			};
+
+			tgec3: ethernet@f2000 {
+				pcsphy-handle = <&pcs_xfiphy4>;
+				pcs-handle-names = "xgmii";
+			};
+
+			mdio@fc000 {
+				fsl,erratum-a011043; /* must ignore read errors */
+
+				pcs_phy1: ethernet-phy@1 {
+					reg = <0x1>;
+				};
+			};
+
+			mdio@fd000 {
+				fsl,erratum-a011043; /* must ignore read errors */
+
+				pcs_xfiphy1: ethernet-phy@10 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x10>;
+				};
+
+				pcs_xfiphy2: ethernet-phy@11 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x11>;
+				};
+
+				pcs_xfiphy3: ethernet-phy@13 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x13>;
+				};
+
+				pcs_xfiphy4: ethernet-phy@12 {
+					compatible = "ethernet-phy-ieee802.3-c45";
+					reg = <0x12>;
+				};
+			};
+		};
+	};
+};
