@@ -1,7 +1,7 @@
 #!/bin/bash
 
 target=$1
-rev=9
+rev=10
 kver="$(make kernelversion)-svy-$rev"
 
 function usage()
