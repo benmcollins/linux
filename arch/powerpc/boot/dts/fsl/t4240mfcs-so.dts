@@ -266,45 +266,7 @@
 			voltage-ranges = <1800 1800 3300 3300>;
 		};
 
-		iommu@20000 {
-			ranges = <0 0x20000 0x5000>;
-			#address-cells = <1>;
-			#size-cells = <1>;
-
-			pamu0: pamu@0 {
-				reg = <0 0x1000>;
-				fsl,primary-cache-geometry = <32 1>;
-				fsl,secondary-cache-geometry = <128 2>;
-			};
-
-			pamu1: pamu@1000 {
-				reg = <0x1000 0x1000>;
-				fsl,primary-cache-geometry = <32 1>;
-				fsl,secondary-cache-geometry = <128 2>;
-			};
-
-			pamu2: pamu@2000 {
-				reg = <0x2000 0x1000>;
-				fsl,primary-cache-geometry = <32 1>;
-				fsl,secondary-cache-geometry = <128 2>;
-			};
-
-			pamu3: pamu@3000 {
-				reg = <0x3000 0x1000>;
-				fsl,primary-cache-geometry = <32 1>;
-				fsl,secondary-cache-geometry = <128 2>;
-			};
-
-			pamu4: pamu@4000 {
-				reg = <0x4000 0x1000>;
-				fsl,primary-cache-geometry = <32 1>;
-				fsl,secondary-cache-geometry = <128 2>;
-			};
-		};
-
 		rmu: rmu@d3000 {
-			fsl,iommu-parent = <&pamu0>;
-			fsl,liodn-reg = <&guts 0x540>; /* RMULIODNR */
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "fsl,srio-rmu";
@@ -342,17 +304,14 @@
 
 	rio: rapidio@ffe0c0000 {
 		fsl,srio-rmu-handle = <&rmu>;
-		fsl,iommu-parent = <&pamu0>;
 		reg = <0xf 0xfe0c0000 0 0x11000>;
 
 		port1 {
 			ranges = <0 0 0xc0 0x80000000 0 0x10000000>;
-			fsl,liodn-reg = <&guts 0x510>; /* RIO1LIODNR */
 		};
 
 		port2 {
 			ranges = <0 0 0xc0 0x90000000 0 0x10000000>;
-			fsl,liodn-reg = <&guts 0x514>; /* RIO2LIODNR */
 		};
 	};
 
