@@ -354,6 +354,7 @@
 		fman@400000 {
 			dtsec0: ethernet@e0000 {
 				pcsphy-handle = <&pcs_phy1>;
+				phy-handle = <&pcs_phy1>;
 				pcs-handle-names = "sgmii";
 			};
 
