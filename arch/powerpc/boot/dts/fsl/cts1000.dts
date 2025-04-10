@@ -149,11 +149,11 @@
 			};
 
 			mdio@f1000 {
-				phy10: ethernet-phy@4 {
+				phy10: ethernet-phy@5 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0x5>;
 				};
-				phy11: ethernet-phy@5 {
+				phy11: ethernet-phy@4 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0x4>;
 				};
