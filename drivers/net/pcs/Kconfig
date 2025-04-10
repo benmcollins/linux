@@ -5,6 +5,18 @@
 
 menu "PCS device drivers"
 
+config PCS
+	bool "PCS subsystem"
+	help
+	  This provides common helper functions for registering and looking up
+	  Physical Coding Sublayer (PCS) devices. PCS devices translate between
+	  different interface types. In some use cases, they may either
+	  translate between different types of Medium-Independent Interfaces
+	  (MIIs), such as translating GMII to SGMII. This allows using a fast
+	  serial interface to talk to the phy which translates the MII to the
+	  Medium-Dependent Interface. Alternatively, they may translate a MII
+	  directly to an MDI, such as translating GMII to 1000Base-X.
+
 config PCS_XPCS
 	tristate "Synopsys DesignWare Ethernet XPCS"
 	select PHYLINK
@@ -13,10 +25,15 @@ config PCS_XPCS
 	  DesignWare XPCS controllers.
 
 config PCS_LYNX
-	tristate
+	tristate "NXP Lynx PCS driver"
+	depends on PCS && MDIO_DEVICE
 	help
-	  This module provides helpers to phylink for managing the Lynx PCS
-	  which is part of the Layerscape and QorIQ Ethernet SERDES.
+	  This module provides driver support for the PCSs in Lynx 10g and 28g
+	  SerDes devices. These devices are present in NXP QorIQ SoCs,
+	  including the Layerscape series.
+
+	  If you want to use Ethernet on a QorIQ SoC, say "Y". If compiled as a
+	  module, it will be called "pcs-lynx".
 
 config PCS_MTK_LYNXI
 	tristate
@@ -32,5 +49,33 @@ config PCS_RZN1_MIIC
 	  This module provides a driver for the MII converter that is available
 	  on RZ/N1 SoCs. This PCS converts MII to RMII/RGMII or can be set in
 	  pass-through mode for MII.
+
+config PCS_ALTERA_TSE
+	tristate
+	help
+	  This module provides helper functions for the Altera Triple Speed
+	  Ethernet SGMII PCS, that can be found on the Intel Socfpga family.
+
+config PCS_XILINX
+	depends on OF
+	depends on GPIOLIB
+	depends on COMMON_CLK
+	depends on PCS
+	select MDIO_DEVICE
+	select PHYLINK
+	default XILINX_AXI_EMAC
+	tristate "Xilinx PCS driver"
+	help
+	  PCS driver for the Xilinx 1G/2.5G Ethernet PCS/PMA or SGMII device.
+	  This device can either act as a PCS+PMA for 1000BASE-X or 2500BASE-X,
+	  or as a GMII-to-SGMII bridge. It can also switch between 1000BASE-X
+	  and SGMII dynamically if configured correctly when synthesized.
+	  Typical applications use this device on an FPGA connected to a GEM or
+	  TEMAC on the GMII side. The other side is typically connected to
+	  on-device gigabit transceivers, off-device SERDES devices using TBI,
+	  or LVDS IO resources directly.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pcs-xilinx.
 
 endmenu
