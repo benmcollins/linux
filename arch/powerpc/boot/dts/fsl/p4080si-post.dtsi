@@ -113,6 +113,7 @@
 };
 
 /* controller at 0x202000 */
+#if !defined(QORIQ_SCOPE) || defined(PCIE2)
 &pci2 {
 	compatible = "fsl,p4080-pcie", "fsl,qoriq-pcie-v2.1";
 	device_type = "pci";
@@ -140,7 +141,9 @@
 			>;
 	};
 };
+#endif
 
+#if !defined(QORIQ_SCOPE) || defined(SRIO)
 &rio {
 	compatible = "fsl,srio";
 	interrupts = <16 2 1 11>;
@@ -164,6 +167,7 @@
 		fsl,liodn-reg = <&guts 0x514>; /* RIO2LIODNR */
 	};
 };
+#endif
 
 &dcsr {
 	#address-cells = <1>;
@@ -348,13 +352,13 @@
 			fsl,secondary-cache-geometry = <128 2>;
 		};
 	};
-
+#if !defined(QORIQ_SCOPE) || defined(SRIO)
 /include/ "qoriq-rmu-0.dtsi"
 	rmu@d3000 {
 		fsl,iommu-parent = <&pamu0>;
 		fsl,liodn-reg = <&guts 0x540>; /* RMULIODNR */
 	};
-
+#endif
 /include/ "qoriq-mpic.dtsi"
 
 	guts: global-utilities@e0000 {
@@ -409,6 +413,7 @@
 		fsl,espi-num-chipselects = <4>;
 	};
 
+#if !defined(QORIQ_SCOPE) || defined(ESDHC)
 /include/ "qoriq-esdhc-0.dtsi"
 	sdhc@114000 {
 		compatible = "fsl,p4080-esdhc", "fsl,esdhc";
@@ -417,6 +422,7 @@
 		voltage-ranges = <3300 3300>;
 		sdhci,auto-cmd12;
 	};
+#endif
 
 /include/ "qoriq-i2c-0.dtsi"
 /include/ "qoriq-i2c-1.dtsi"
@@ -445,48 +451,80 @@ crypto: crypto@300000 {
 /include/ "qoriq-bman1.dtsi"
 
 /include/ "qoriq-fman-0.dtsi"
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G0)
 /include/ "qoriq-fman-0-1g-0.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G1)
 /include/ "qoriq-fman-0-1g-1.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G2)
 /include/ "qoriq-fman-0-1g-2.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G3)
 /include/ "qoriq-fman-0-1g-3.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_10G0)
 /include/ "qoriq-fman-0-10g-0.dtsi"
+#endif
 	fman@400000 {
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G0)
 		enet0: ethernet@e0000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G1)
 		enet1: ethernet@e2000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G2)
 		enet2: ethernet@e4000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G3)
 		enet3: ethernet@e6000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_10G0)
 		enet4: ethernet@f0000 {
 		};
+#endif
 	};
 
 /include/ "qoriq-fman-1.dtsi"
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G0)
 /include/ "qoriq-fman-1-1g-0.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G1)
 /include/ "qoriq-fman-1-1g-1.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G2)
 /include/ "qoriq-fman-1-1g-2.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G3)
 /include/ "qoriq-fman-1-1g-3.dtsi"
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_10G0)
 /include/ "qoriq-fman-1-10g-0.dtsi"
+#endif
 	fman@500000 {
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G0)
 		enet5: ethernet@e0000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G1)
 		enet6: ethernet@e2000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G2)
 		enet7: ethernet@e4000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G3)
 		enet8: ethernet@e6000 {
 		};
-
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_10G0)
 		enet9: ethernet@f0000 {
 		};
+#endif
 	};
 };

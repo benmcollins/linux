@@ -52,12 +52,16 @@
 		serial3 = &serial3;
 		pci0 = &pci0;
 		pci1 = &pci1;
+#if !defined(QORIQ_SCOPE) || defined(PCIE2)
 		pci2 = &pci2;
+#endif
 		usb0 = &usb0;
 		usb1 = &usb1;
 		dma0 = &dma0;
 		dma1 = &dma1;
+#if !defined(QORIQ_SCOPE) || defined(ESDHC)
 		sdhc = &sdhc;
+#endif
 		msi0 = &msi0;
 		msi1 = &msi1;
 		msi2 = &msi2;
@@ -75,16 +79,36 @@
 
 		fman0 = &fman0;
 		fman1 = &fman1;
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G0)
 		ethernet0 = &enet0;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G1)
 		ethernet1 = &enet1;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G2)
 		ethernet2 = &enet2;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G3)
 		ethernet3 = &enet3;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_10G0)
 		ethernet4 = &enet4;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G0)
 		ethernet5 = &enet5;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G1)
 		ethernet6 = &enet6;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G2)
 		ethernet7 = &enet7;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G3)
 		ethernet8 = &enet8;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_10G0)
 		ethernet9 = &enet9;
+#endif
 	};
 
 	cpus {
