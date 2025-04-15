@@ -41,7 +41,7 @@
 #define FMAN1_10G0
 #define FMAN1_10G1
 
-#define DIRECT_PHY
+#define DIRECT_PHY_1G
 
 #define MEM_HIGH	0xfc
 #define BRD_HIGH	0xff
@@ -186,7 +186,7 @@
 				interrupts = <0x1 0x1 0 0>;
 			};
 			monitor@2f {
-				compatible = "w83793";
+				compatible = "winbond,w83793";
 				reg = <0x2f>;
 			};
 		};
@@ -291,6 +291,20 @@
 #include "t4240si-post.dtsi"
 
 / {
+	/* Redo aliases so we get proper ordering in relation to the back
+	 * panel when udev renames things. */
+	aliases {
+		/* ethernet0 is 1g, leave it */
+		/delete-property/ ethernet6;
+		/delete-property/ ethernet7;
+		/delete-property/ ethernet14;
+		/delete-property/ ethernet15;
+		ethernet1 = &enet14;
+		ethernet2 = &enet15;
+		ethernet3 = &enet7;
+		ethernet4 = &enet6;
+	};
+
 	/* Back Panel Port 1 */
 	sfp_xg0: xg-sfp0 {
 		compatible = "sff,sfp";
@@ -328,27 +342,24 @@
 		fman@400000 {
 			/* FM1 1G 1 */
 			ethernet@e0000 {
+				/delete-property/ pcs-handle-names;
 				pcsphy-handle = <&pcsphy0>;
-				pcs-handle = <&pcsphy0>;
-				#ifdef DIRECT_PHY
+				#ifdef DIRECT_PHY_1G
 				phy-handle = <&phy1>;
 				#endif
-				/delete-property/ pcs-handle-names;
 			};
 
 			/* FM1 10G 1, Back Panel Port 4 */
 			ethernet@f0000 {
-				pcsphy-handle = <&pcsphy6>;
-				pcs-handle = <&pcsphy6>;
 				/delete-property/ pcs-handle-names;
+				pcsphy-handle = <&pcsphy6>;
 				sfp = <&sfp_xg3>;
 			};
 
 			/* FM1 10G 2, Back Panel Port 3 */
 			ethernet@f2000 {
-				pcsphy-handle = <&pcsphy7>;
-				pcs-handle = <&pcsphy7>;
 				/delete-property/ pcs-handle-names;
+				pcsphy-handle = <&pcsphy7>;
 				sfp = <&sfp_xg2>;
 			};
 
@@ -375,17 +386,15 @@
 		fman@500000 {
 			/* FM2 10G 1, Back Panel Port 1 */
 			ethernet@f0000 {
-				pcsphy-handle = <&pcsphy14>;
-				pcs-handle = <&pcsphy14>;
 				/delete-property/ pcs-handle-names;
+				pcsphy-handle = <&pcsphy14>;
 				sfp = <&sfp_xg0>;
 			};
 
 			/* FM2 10G 2, Back Panel Port 2 */
 			ethernet@f2000 {
-				pcsphy-handle = <&pcsphy15>;
-				pcs-handle = <&pcsphy15>;
 				/delete-property/ pcs-handle-names;
+				pcsphy-handle = <&pcsphy15>;
 				sfp = <&sfp_xg1>;
 			};
 
@@ -397,20 +406,20 @@
 				compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
 			};
 
-			#ifdef DIRECT_PHY
-				mdio@fc000 {
-					phy1: ethernet-phy@1 {
-						reg = <0x01>;
-					};
+			#ifdef DIRECT_PHY_1G
+			mdio@fc000 {
+				phy1: ethernet-phy@1 {
+					reg = <0x01>;
 				};
+			};
 			#endif
 
 			#ifdef QORIQ_SCOPE
 			/delete-node/ mdio@e9000;
-			#ifndef DIRECT_PHY
+			#ifndef DIRECT_PHY_1G
 			/delete-node/ mdio@fc000;
-			/delete-node/ mdio@fd000;
 			#endif
+			/delete-node/ mdio@fd000;
 			#endif
 		};
 	};
