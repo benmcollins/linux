@@ -6,13 +6,13 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
+ *	names of its contributors may be used to endorse or promote products
+ *	derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -33,7 +33,20 @@
  */
 
 #include <dt-bindings/gpio/gpio.h>
-/include/ "t4240si-pre.dtsi"
+
+#define QORIQ_SCOPE
+#define FMAN0_1G0
+#define FMAN0_10G0
+#define FMAN0_10G1
+#define FMAN1_10G0
+#define FMAN1_10G1
+
+#define DIRECT_PHY
+
+#define MEM_HIGH	0xfc
+#define BRD_HIGH	0xff
+
+#include "t4240si-pre.dtsi"
 
 / {
 	model = "fsl,T4240MFCS";
@@ -43,19 +56,11 @@
 	#size-cells = <2>;
 	interrupt-parent = <&mpic>;
 
-	aliases {
-		ethernet0 = &dtsec0;
-		ethernet1 = &tgec0;
-		ethernet2 = &tgec1;
-		ethernet3 = &tgec2;
-		ethernet4 = &tgec3;
-	};
-
 	ifc: localbus@ffe124000 {
-		reg = <0xf0 0xfe124000 0 0x2000>;
-		ranges = <0 0 0xf0 0xe8000000 0x08000000
-			  2 0 0xf0 0xff800000 0x00010000
-			  3 0 0xf0 0xffdf0000 0x00008000>;
+		reg = <BRD_HIGH 0xfe124000 0 0x2000>;
+		ranges = <0 0 BRD_HIGH 0xe8000000 0x08000000
+			  2 0 BRD_HIGH 0xff800000 0x00010000
+			  3 0 BRD_HIGH 0xffdf0000 0x00008000>;
 
 		nor@0,0 {
 			#address-cells = <1>;
@@ -144,20 +149,20 @@
 	};
 
 	dcsr: dcsr@f00000000 {
-		ranges = <0x0 0xf0 0x00000000 0x01072000>;
+		ranges = <0x0 BRD_HIGH 0x00000000 0x01072000>;
 	};
 
 	bportals: bman-portals@ff4000000 {
-		ranges = <0x0 0xf0 0xf4000000 0x2000000>;
+		ranges = <0x0 BRD_HIGH 0xf4000000 0x2000000>;
 	};
 
 	qportals: qman-portals@ff6000000 {
-		ranges = <0x0 0xf0 0xf6000000 0x2000000>;
+		ranges = <0x0 BRD_HIGH 0xf6000000 0x2000000>;
 	};
 
 	soc: soc@ffe000000 {
-		ranges = <0x00000000 0xf0 0xfe000000 0x1000000>;
-		reg = <0xf0 0xfe000000 0 0x00001000>;
+		ranges = <0x00000000 BRD_HIGH 0xfe000000 0x1000000>;
+		reg = <BRD_HIGH 0xfe000000 0 0x00001000>;
 
 		gpio-restart {
 			compatible = "gpio-restart";
@@ -168,18 +173,6 @@
 		gpio-board-id {
 			compatible = "gpio-board-id";
 			gpios = <&gpio3 11 GPIO_OPEN_SOURCE>;
-		};
-
-		spi@110000 {
-			flash@0 {
-				#address-cells = <1>;
-				#size-cells = <1>;
-				compatible = "sst,sst25wf040", "jedec,spi-nor";
-				reg = <0>;
-				spi-max-frequency = <40000000>; /* input clock */
-				// Not recognized by spi-nor driver
-				status = "disabled";
-			};
 		};
 
 		i2c@118000 {
@@ -206,46 +199,28 @@
 				reg = <0x70>;
 
 
-				i2c@1 {			/* SFP1 */
+				i2c_mux_0: i2c@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+				};
+
+				i2c_mux_1: i2c@1 {
 					#address-cells = <1>;
 					#size-cells = <0>;
 					reg = <1>;
-
-					eeprom@50 {
-						compatible = "at24,at24c128";
-						reg = <0x50>;
-					};
 				};
 
-				i2c@2 {			/* SFP2 */
+				i2c_mux_2: i2c@2 {
 					#address-cells = <1>;
 					#size-cells = <0>;
 					reg = <2>;
-
-					eeprom@50 {
-						compatible = "at24,at24c128";
-						reg = <0x50>;
-					};
 				};
-				i2c@3 {			/*SFP3*/
+
+				i2c_mux_3: i2c@3 {
 					#address-cells = <1>;
 					#size-cells = <0>;
 					reg = <3>;
-
-					eeprom@50 {
-						compatible = "at24,at24c128";
-						reg = <0x50>;
-					};
-				};
-				i2c@4 {			/* SFP4 */
-					#address-cells = <1>;
-					#size-cells = <0>;
-					reg = <4>;
-
-					eeprom@50 {
-						compatible = "at24,at24c128";
-						reg = <0x50>;
-					};
 				};
 			};
 		};
@@ -266,59 +241,26 @@
 			voltage-ranges = <1800 1800 3300 3300>;
 		};
 
-		rmu: rmu@d3000 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,srio-rmu";
-			reg = <0xd3000 0x500>;
-			ranges = <0x0 0xd3000 0x500>;
-
-			message-unit@0 {
-				compatible = "fsl,srio-msg-unit";
-				reg = <0x0 0x100>;
-				interrupts = <
-					60 2 0 0  /* msg1_tx_irq */
-					61 2 0 0>;/* msg1_rx_irq */
-			};
-			message-unit@100 {
-				compatible = "fsl,srio-msg-unit";
-				reg = <0x100 0x100>;
-				interrupts = <
-					62 2 0 0  /* msg2_tx_irq */
-					63 2 0 0>;/* msg2_rx_irq */
-			};
-			doorbell-unit@400 {
-				compatible = "fsl,srio-dbell-unit";
-				reg = <0x400 0x80>;
-				interrupts = <
-					56 2 0 0  /* bell_outb_irq */
-					57 2 0 0>;/* bell_inb_irq */
-			};
-			port-write-unit@4e0 {
-				compatible = "fsl,srio-port-write-unit";
-				reg = <0x4e0 0x20>;
-				interrupts = <16 2 1 11>;
-			};
-		};
+		#include "qoriq-rmu-0.dtsi"
 	};
 
 	rio: rapidio@ffe0c0000 {
 		fsl,srio-rmu-handle = <&rmu>;
-		reg = <0xf0 0xfe0c0000 0 0x11000>;
+		reg = <BRD_HIGH 0xfe0c0000 0 0x11000>;
 
 		port1 {
-			ranges = <0 0 0xc0 0x80000000 0 0x10000000>;
+			ranges = <0 0 MEM_HIGH 0x80000000 0 0x10000000>;
 		};
 
 		port2 {
-			ranges = <0 0 0xc0 0x90000000 0 0x10000000>;
+			ranges = <0 0 MEM_HIGH 0x90000000 0 0x10000000>;
 		};
 	};
 
 	pci0: pcie@ffe240000 {
-		reg = <0xf0 0xfe240000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc0 0x00000000 0x0 0x40000000
-			  0x01000000 0 0x00000000 0xf0 0xf8000000 0x0 0x00020000>;
+		reg = <BRD_HIGH 0xfe240000 0 0x10000>;
+		ranges = <0x02000000 0 0xe0000000 MEM_HIGH 0x00000000 0x0 0x40000000
+			  0x01000000 0 0x00000000 BRD_HIGH 0xf8000000 0x0 0x00020000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
@@ -331,9 +273,9 @@
 	};
 
 	pci2: pcie@ffe260000 {
-		reg = <0xf0 0xfe260000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc0 0x40000000 0 0x40000000
-			  0x01000000 0 0x00000000 0xf0 0xf8020000 0 0x00020000>;
+		reg = <BRD_HIGH 0xfe260000 0 0x10000>;
+		ranges = <0x02000000 0 0xe0000000 MEM_HIGH 0x40000000 0 0x40000000
+			  0x01000000 0 0x00000000 BRD_HIGH 0xf8020000 0 0x00020000>;
 		pcie@0 {
 			ranges = <0x02000000 0 0xe0000000
 				  0x02000000 0 0xe0000000
@@ -346,71 +288,130 @@
 	};
 };
 
-/include/ "t4240si-post.dtsi"
+#include "t4240si-post.dtsi"
 
-/* Needs to be here, otherwise it gets overriden with post include */
 / {
+	/* Back Panel Port 1 */
+	sfp_xg0: xg-sfp0 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_mux_3>;
+		mod-def0-gpios = <&gpio2 20 GPIO_ACTIVE_LOW>;
+		los-gpios = <&gpio2 27 GPIO_ACTIVE_HIGH>;
+		/* tx-disable-gpios = <&gpio2 30 GPIO_ACTIVE_HIGH>; */
+	};
+
+	/* Back Panel Port 2 */
+	sfp_xg1: xg-sfp1 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_mux_2>;
+		mod-def0-gpios = <&gpio2 21 GPIO_ACTIVE_LOW>;
+		los-gpios = <&gpio2 26 GPIO_ACTIVE_HIGH>;
+	};
+
+	/* Back Panel Port 3 */
+	sfp_xg2: xg-sfp2 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_mux_1>;
+		mod-def0-gpios = <&gpio2 22 GPIO_ACTIVE_LOW>;
+		los-gpios = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+	};
+
+	/* Back Panel Port 4 */
+	sfp_xg3: xg-sfp3 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_mux_0>;
+		mod-def0-gpios = <&gpio2 23 GPIO_ACTIVE_LOW>;
+		los-gpios = <&gpio2 29 GPIO_ACTIVE_HIGH>;
+	};
+
 	soc@ffe000000 {
 		fman@400000 {
-			dtsec0: ethernet@e0000 {
-				pcsphy-handle = <&pcs_phy1>;
-				phy-handle = <&pcs_phy1>;
-				pcs-handle-names = "sgmii";
+			/* FM1 1G 1 */
+			ethernet@e0000 {
+				pcsphy-handle = <&pcsphy0>;
+				pcs-handle = <&pcsphy0>;
+				#ifdef DIRECT_PHY
+				phy-handle = <&phy1>;
+				#endif
+				/delete-property/ pcs-handle-names;
 			};
 
-			tgec0: ethernet@f0000 {
-				pcsphy-handle = <&pcs_xfiphy1>;
-				pcs-handle-names = "xgmii";
+			/* FM1 10G 1, Back Panel Port 4 */
+			ethernet@f0000 {
+				pcsphy-handle = <&pcsphy6>;
+				pcs-handle = <&pcsphy6>;
+				/delete-property/ pcs-handle-names;
+				sfp = <&sfp_xg3>;
 			};
 
-			tgec1: ethernet@f2000 {
-				pcsphy-handle = <&pcs_xfiphy2>;
-				pcs-handle-names = "xgmii";
+			/* FM1 10G 2, Back Panel Port 3 */
+			ethernet@f2000 {
+				pcsphy-handle = <&pcsphy7>;
+				pcs-handle = <&pcsphy7>;
+				/delete-property/ pcs-handle-names;
+				sfp = <&sfp_xg2>;
 			};
+
+			/* U-Boot needs the extra for LIODN */
+			port@88000 {
+		                compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx";
+			};
+
+			port@90000 {
+				compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
+			};
+
+			port@91000 {
+				compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
+			};
+
+			#ifdef QORIQ_SCOPE
+			/delete-node/ mdio@e9000;
+			/delete-node/ mdio@fc000;
+			/delete-node/ mdio@fd000;
+			#endif
 		};
 
 		fman@500000 {
-			tgec2: ethernet@f0000 {
-				pcsphy-handle = <&pcs_xfiphy3>;
-				pcs-handle-names = "xgmii";
+			/* FM2 10G 1, Back Panel Port 1 */
+			ethernet@f0000 {
+				pcsphy-handle = <&pcsphy14>;
+				pcs-handle = <&pcsphy14>;
+				/delete-property/ pcs-handle-names;
+				sfp = <&sfp_xg0>;
 			};
 
-			tgec3: ethernet@f2000 {
-				pcsphy-handle = <&pcs_xfiphy4>;
-				pcs-handle-names = "xgmii";
+			/* FM2 10G 2, Back Panel Port 2 */
+			ethernet@f2000 {
+				pcsphy-handle = <&pcsphy15>;
+				pcs-handle = <&pcsphy15>;
+				/delete-property/ pcs-handle-names;
+				sfp = <&sfp_xg1>;
 			};
 
-			mdio@fc000 {
-				fsl,erratum-a011043; /* must ignore read errors */
-
-				pcs_phy1: ethernet-phy@1 {
-					reg = <0x1>;
-				};
+			port@90000 {
+				compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
 			};
 
-			mdio@fd000 {
-				fsl,erratum-a011043; /* must ignore read errors */
-
-				pcs_xfiphy1: ethernet-phy@10 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x10>;
-				};
-
-				pcs_xfiphy2: ethernet-phy@11 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x11>;
-				};
-
-				pcs_xfiphy3: ethernet-phy@13 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x13>;
-				};
-
-				pcs_xfiphy4: ethernet-phy@12 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x12>;
-				};
+                        port@91000 {
+				compatible = "fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx";
 			};
+
+			#ifdef DIRECT_PHY
+				mdio@fc000 {
+					phy1: ethernet-phy@1 {
+						reg = <0x01>;
+					};
+				};
+			#endif
+
+			#ifdef QORIQ_SCOPE
+			/delete-node/ mdio@e9000;
+			#ifndef DIRECT_PHY
+			/delete-node/ mdio@fc000;
+			/delete-node/ mdio@fd000;
+			#endif
+			#endif
 		};
 	};
 };

@@ -56,6 +56,12 @@ fman@400000 {
 	};
 
 	mdio@e9000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,fman-memac-mdio", "fsl,fman-xmdio";
+		reg = <0xe9000 0x1000>;
+		fsl,erratum-a011043; /* must ignore read errors */
+
 		qsgmiib_pcs1: ethernet-pcs@1 {
 			compatible = "fsl,lynx-pcs";
 			reg = <1>;

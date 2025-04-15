@@ -63,22 +63,54 @@
 
 		fman0 = &fman0;
 		fman1 = &fman1;
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G0)
 		ethernet0 = &enet0;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G1)
 		ethernet1 = &enet1;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G2)
 		ethernet2 = &enet2;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G3)
 		ethernet3 = &enet3;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G4)
 		ethernet4 = &enet4;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_1G5)
 		ethernet5 = &enet5;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_10G0)
 		ethernet6 = &enet6;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN0_10G1)
 		ethernet7 = &enet7;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G0)
 		ethernet8 = &enet8;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G1)
 		ethernet9 = &enet9;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G2)
 		ethernet10 = &enet10;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G3)
 		ethernet11 = &enet11;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G4)
 		ethernet12 = &enet12;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_1G5)
 		ethernet13 = &enet13;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_10G0)
 		ethernet14 = &enet14;
+#endif
+#if !defined(QORIQ_SCOPE) || defined(FMAN1_10G1)
 		ethernet15 = &enet15;
+#endif
 	};
 
 	cpus {
