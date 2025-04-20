@@ -105,6 +105,28 @@ config UIO_NETX
 	  To compile this driver as a module, choose M here; the module
 	  will be called uio_netx.
 
+config UIO_FSL_SRIO
+	tristate "Freescale Serial RapidIO support"
+	depends on RAPIDIO=n
+	default n
+	help
+	  UIO driver for the Freescale RapidIO unit.
+	  This driver will obtain the RapidIO nodes from DTB structure, and
+	  expose the RapidIO regiter space to user space.
+
+	  If you don't know what to do here, say N.
+
+config UIO_FSL_DMA
+	tristate "Freescale DMA support"
+	depends on FSL_DMA=n
+	default n
+	help
+	  UIO driver for the Freescale DMA controller.
+	  This driver will obtain the DMA nodes from DTB structure, and
+	  expose the DMA regiter space to user space.
+
+	  If you don't know what to do here, say N.
+
 config UIO_FSL_ELBC_GPCM
 	tristate "eLBC/GPCM driver"
 	depends on FSL_LBC
