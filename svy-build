@@ -12,11 +12,11 @@ function usage()
 
 case "$1" in
 jade*)
-	export KDEB_PACKAGEEXT=jade
+	export KDEB_PACKAGEEXT=jade-${rev}
 	export KBUILD_IMAGE=arch/powerpc/boot/uImage
 	;;
 yoda*)
-	export KDEB_PACKAGEEXT=yoda
+	export KDEB_PACKAGEEXT=yoda-${rev}
 	export KBUILD_IMAGE=arch/powerpc/boot/uImage
 	;;
 *)
