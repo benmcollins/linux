@@ -552,7 +552,7 @@ EXPORT_SYMBOL_GPL(rio_release_outb_dbell);
 
 /**
  * rio_add_mport_pw_handler - add port-write message handler into the list
- *                            of mport specific pw handlers
+ *			    of mport specific pw handlers
  * @mport:   RIO master port to bind the portwrite callback
  * @context: Handler specific context to pass on event
  * @pwcback: Callback to execute when portwrite is received
@@ -579,7 +579,7 @@ EXPORT_SYMBOL_GPL(rio_add_mport_pw_handler);
 
 /**
  * rio_del_mport_pw_handler - remove port-write message handler from the list
- *                            of mport specific pw handlers
+ *			    of mport specific pw handlers
  * @mport:   RIO master port to bind the portwrite callback
  * @context: Registered handler specific context to pass on event
  * @pwcback: Registered callback function
@@ -610,7 +610,7 @@ EXPORT_SYMBOL_GPL(rio_del_mport_pw_handler);
 
 /**
  * rio_request_inb_pwrite - request inbound port-write message service for
- *                          specific RapidIO device
+ *			  specific RapidIO device
  * @rdev: RIO device to which register inbound port-write callback routine
  * @pwcback: Callback routine to execute when port-write is received
  *
@@ -635,7 +635,7 @@ EXPORT_SYMBOL_GPL(rio_request_inb_pwrite);
 
 /**
  * rio_release_inb_pwrite - release inbound port-write message service
- *                          associated with specific RapidIO device
+ *			  associated with specific RapidIO device
  * @rdev: RIO device which registered for inbound port-write callback
  *
  * Removes callback from the rio_dev structure. Returns 0 if the request
@@ -769,7 +769,7 @@ EXPORT_SYMBOL_GPL(rio_unmap_outb_region);
 
 /**
  * rio_mport_get_physefb - Helper function that returns register offset
- *                      for Physical Layer Extended Features Block.
+ *		      for Physical Layer Extended Features Block.
  * @port: Master port to issue transaction
  * @local: Indicate a local master port or remote device access
  * @destid: Destination ID of the device
@@ -1019,7 +1019,7 @@ static int rio_chk_dev_access(struct rio_dev *rdev)
 
 /**
  * rio_get_input_status - Sends a Link-Request/Input-Status control symbol and
- *                        returns link-response (if requested).
+ *			  returns link-response (if requested).
  * @rdev: RIO devive to issue Input-status command
  * @pnum: Device port number to issue the command
  * @lnkresp: Response from a link partner
@@ -1798,7 +1798,7 @@ EXPORT_SYMBOL_GPL(rio_release_dma);
  * target RIO device.
  *
  * Returns: pointer to DMA transaction descriptor if successful,
- *          error-valued pointer or NULL if failed.
+ *	  error-valued pointer or NULL if failed.
  */
 struct dma_async_tx_descriptor *rio_dma_prep_xfer(struct dma_chan *dchan,
 	u16 destid, struct rio_dma_data *data,
@@ -1826,7 +1826,7 @@ EXPORT_SYMBOL_GPL(rio_dma_prep_xfer);
 /**
  * rio_register_scan - enumeration/discovery method registration interface
  * @mport_id: mport device ID for which fabric scan routine has to be set
- *            (RIO_MPORT_ANY = set for all available mports)
+ *	    (RIO_MPORT_ANY = set for all available mports)
  * @scan_ops: enumeration/discovery operations structure
  *
  * Registers enumeration/discovery operations with RapidIO subsystem and
@@ -2056,6 +2056,69 @@ int rio_mport_initialize(struct rio_mport *mport)
 }
 EXPORT_SYMBOL_GPL(rio_mport_initialize);
 
+static void rio_mport_info(struct rio_mport *port)
+{
+	struct rio_mport_attr attr;
+	const char *link, *speed;
+	int down = 0;
+
+	if (rio_query_mport(port, &attr)) {
+		dev_warn(&port->dev,
+		"does not support query_mport (let the driver author know)\n");
+		return;
+	}
+
+	switch (attr.link_speed) {
+	case RIO_LINK_DOWN:
+		down = 1;
+		break;
+	case RIO_LINK_125:
+		speed = "1.25 GBaud";
+		break;
+	case RIO_LINK_250:
+		speed = "2.5 GBaud";
+		break;
+	case RIO_LINK_312:
+		speed = "3.125 GBaud";
+		break;
+	case RIO_LINK_500:
+		speed = "5 GBaud";
+		break;
+	case RIO_LINK_625:
+		speed = "6.25 GBaud";
+		break;
+	};
+
+	switch (attr.link_width) {
+	case RIO_LINK_1X:
+		link = "1x";
+		break;
+	case RIO_LINK_1XR:
+		link = "1xR";
+		break;
+	case RIO_LINK_2X:
+		link = "2x";
+		break;
+	case RIO_LINK_4X:
+		link = "4x";
+		break;
+	case RIO_LINK_8X:
+		link = "8x";
+		break;
+	case RIO_LINK_16X:
+		link = "16x";
+		break;
+	}
+
+	dev_info(&port->dev, "iores %pR\n", &port->iores);
+	if (down) {
+		dev_warn(&port->dev, "Link is Down\n");
+	} else {
+		dev_info(&port->dev, "Link is Up - %s/%s - System Size %d\n",
+			speed, link, port->sys_size ? 65536 : 256);
+	}
+}
+
 int rio_register_mport(struct rio_mport *port)
 {
 	struct rio_scan_node *scan = NULL;
@@ -2085,15 +2148,17 @@ int rio_register_mport(struct rio_mport *port)
 
 	res = device_register(&port->dev);
 	if (res) {
-		dev_err(&port->dev, "RIO: mport%d registration failed ERR=%d\n",
+		dev_err(&port->dev, "Registration failed for mport%d ERR=%d\n",
 			port->id, res);
 		mutex_lock(&rio_mport_list_lock);
 		list_del(&port->node);
 		mutex_unlock(&rio_mport_list_lock);
 		put_device(&port->dev);
 	} else {
-		dev_dbg(&port->dev, "RIO: registered mport%d\n", port->id);
+		dev_info(&port->dev, "Registered mport%d\n", port->id);
 	}
+
+	rio_mport_info(port);
 
 	return res;
 }
