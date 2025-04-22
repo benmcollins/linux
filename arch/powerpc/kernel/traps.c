@@ -56,7 +56,6 @@
 #endif
 #include <asm/kexec.h>
 #include <asm/ppc-opcode.h>
-#include <asm/rio.h>
 #include <asm/fadump.h>
 #include <asm/switch_to.h>
 #include <asm/tm.h>
@@ -601,6 +600,42 @@ static inline int check_io_access(struct pt_regs *regs)
 #define inst_length(reason)	(((reason) & REASON_PREFIXED) ? 8 : 4)
 
 #if defined(CONFIG_PPC_E500)
+#if IS_ENABLED(CONFIG_FSL_RIO)
+void __iomem *rio_regs_win __read_mostly;
+EXPORT_SYMBOL_GPL(rio_regs_win);
+
+#define RIO_LTLEDCSR           0x0608
+#define RIO_LTLEDCSR_IER       0x80000000
+#define RIO_LTLEDCSR_PRT       0x01000000
+
+static int fsl_rio_mcheck_exception(struct pt_regs *regs)
+{
+	const struct exception_table_entry *entry;
+	unsigned long reason;
+
+	if (!rio_regs_win)
+		return 0;
+
+	reason = in_be32((u32 *)(rio_regs_win + RIO_LTLEDCSR));
+	if (reason & (RIO_LTLEDCSR_IER | RIO_LTLEDCSR_PRT)) {
+		/* Check if we are prepared to handle this fault */
+		entry = search_exception_tables(regs->nip);
+		if (entry) {
+			pr_debug("RIO: %s - MC Exception handled\n",
+				 __func__);
+			out_be32((u32 *)(rio_regs_win + RIO_LTLEDCSR), 0);
+			regs_set_recoverable(regs);
+			regs_set_return_ip(regs, extable_fixup(entry));
+			return 1;
+		}
+	}
+
+	return 0;
+}
+#else
+#define fsl_rio_mcheck_exception(__x) (0)
+#endif
+
 int machine_check_e500mc(struct pt_regs *regs)
 {
 	unsigned long mcsr = mfspr(SPRN_MCSR);

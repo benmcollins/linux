@@ -33,7 +33,6 @@
 #include <linux/io.h>
 #include <linux/uaccess.h>
 #include <asm/machdep.h>
-#include <asm/rio.h>
 
 #include "fsl_rio.h"
 
@@ -92,41 +91,13 @@ static DEFINE_SPINLOCK(fsl_rio_config_lock);
 	___fsl_read_rio_config(x, addr, err, op, "eieio")
 #endif
 
-void __iomem *rio_regs_win;
+/* Exported by traps.c */
+extern void __iomem *rio_regs_win;
 void __iomem *rmu_regs_win;
 resource_size_t rio_law_start;
 
 struct fsl_rio_dbell *dbell;
 struct fsl_rio_pw *pw;
-
-#ifdef CONFIG_PPC_E500
-int fsl_rio_mcheck_exception(struct pt_regs *regs)
-{
-	const struct exception_table_entry *entry;
-	unsigned long reason;
-
-	if (!rio_regs_win)
-		return 0;
-
-	reason = in_be32((u32 *)(rio_regs_win + RIO_LTLEDCSR));
-	if (reason & (RIO_LTLEDCSR_IER | RIO_LTLEDCSR_PRT)) {
-		/* Check if we are prepared to handle this fault */
-		entry = search_exception_tables(regs->nip);
-		if (entry) {
-			pr_debug("RIO: %s - MC Exception handled\n",
-				 __func__);
-			out_be32((u32 *)(rio_regs_win + RIO_LTLEDCSR),
-				 0);
-			regs_set_recoverable(regs);
-			regs_set_return_ip(regs, extable_fixup(entry));
-			return 1;
-		}
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(fsl_rio_mcheck_exception);
-#endif
 
 /**
  * fsl_local_config_read - Generate a MPC85xx local config space read
