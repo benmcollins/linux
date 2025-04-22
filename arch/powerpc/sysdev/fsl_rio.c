@@ -600,7 +600,6 @@ static int fsl_rio_setup(struct platform_device *dev)
 			continue;
 		}
 
-		INIT_LIST_HEAD(&port->dbells);
 		port->iores = res;	/* struct copy */
 		port->iores.name = "rio_io_win";
 

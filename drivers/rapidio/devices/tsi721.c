@@ -2710,8 +2710,6 @@ static int tsi721_setup_mport(struct tsi721_device *priv)
 	mport->dev.parent = &pdev->dev;
 	mport->dev.release = tsi721_mport_release;
 
-	INIT_LIST_HEAD(&mport->dbells);
-
 	rio_init_dbell_res(&mport->riores[RIO_DOORBELL_RESOURCE], 0, 0xffff);
 	rio_init_mbox_res(&mport->riores[RIO_INB_MBOX_RESOURCE], 0, 3);
 	rio_init_mbox_res(&mport->riores[RIO_OUTB_MBOX_RESOURCE], 0, 3);

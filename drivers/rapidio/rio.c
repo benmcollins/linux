@@ -2050,6 +2050,7 @@ int rio_mport_initialize(struct rio_mport *mport)
 	mutex_init(&mport->lock);
 	mport->pwe_refcnt = 0;
 	INIT_LIST_HEAD(&mport->pwrites);
+	INIT_LIST_HEAD(&mport->dbells);
 
 	return 0;
 }
