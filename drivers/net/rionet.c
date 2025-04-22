@@ -670,10 +670,11 @@ static void rionet_remove_mport(struct device *dev)
 
 	pr_debug("%s %s\n", __func__, mport->name);
 
+	if (!nets[id].ndev)
+		return;
+
 	WARN(nets[id].nact, "%s called when connected to %d peers\n",
 	     __func__, nets[id].nact);
-	WARN(!nets[id].ndev, "%s called for mport without NDEV\n",
-	     __func__);
 
 	if (nets[id].ndev) {
 		ndev = nets[id].ndev;
