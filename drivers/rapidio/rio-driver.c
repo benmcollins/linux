@@ -257,7 +257,14 @@ static int __init rio_bus_init(void)
 	return ret;
 }
 
-postcore_initcall(rio_bus_init);
+static void __exit rio_bus_exit(void)
+{
+	class_unregister(&rio_mport_class);
+	bus_unregister(&rio_bus_type);
+}
+
+module_init(rio_bus_init);
+module_exit(rio_bus_exit);
 
 EXPORT_SYMBOL_GPL(rio_register_driver);
 EXPORT_SYMBOL_GPL(rio_unregister_driver);
