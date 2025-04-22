@@ -11,9 +11,14 @@ config RAPIDIO_TSI721
 	  Include support for IDT Tsi721 PCI Express Serial RapidIO controller.
 
 config FSL_RIO
-	tristate "Freescale Embedded SRIO Controller support"
+	bool
+
+config FSL_RIO_RMU
+	tristate "Freescale SRIO Controller with RMU"
 	depends on RAPIDIO && PPC_E500
+	select FSL_RIO
 	default "n"
 	help
 	  Include support for RapidIO controller on Freescale embedded
-	  processors (MPC8548, MPC8641, P-Series, T-Series, etc).
+	  processors (MPC8548, MPC8641, etc). This controller depends on an
+	  RMU, usually found on P4080 and similar systems.

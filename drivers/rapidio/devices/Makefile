@@ -8,5 +8,5 @@ tsi721_mport-y			:= tsi721.o
 tsi721_mport-$(CONFIG_RAPIDIO_DMA_ENGINE) += tsi721_dma.o
 obj-$(CONFIG_RAPIDIO_MPORT_CDEV) += rio_mport_cdev.o
 
-obj-$(CONFIG_FSL_RIO)           += fsl_rio_mport.o
-fsl_rio_mport-y			:= fsl_rio.o fsl_rmu.o
+obj-$(CONFIG_FSL_RIO_RMU)	+= fsl_rio_rmu.o
+fsl_rio_rmu-y			:= fsl_rio.o fsl_rmu.o

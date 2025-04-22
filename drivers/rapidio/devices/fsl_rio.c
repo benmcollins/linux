@@ -36,37 +36,6 @@
 
 #include "fsl_rio.h"
 
-#undef DEBUG_PW	/* Port-Write debugging */
-
-#define RIO_PORT1_EDCSR		0x0640
-#define RIO_PORT2_EDCSR		0x0680
-#define RIO_PORT1_IECSR		0x10130
-#define RIO_PORT2_IECSR		0x101B0
-
-#define RIO_GCCSR		0x13c
-#define RIO_ESCSR		0x158
-#define ESCSR_CLEAR		0x07120204
-#define RIO_PORT2_ESCSR		0x178
-#define RIO_CCSR		0x15c
-#define RIO_LTLEDCSR_IER	0x80000000
-#define RIO_LTLEDCSR_PRT	0x01000000
-#define IECSR_CLEAR		0x80000000
-#define RIO_ISR_AACR		0x10120
-#define RIO_ISR_AACR_AA		0x1	/* Accept All ID */
-
-#define RIWTAR_TRAD_VAL_SHIFT	12
-#define RIWTAR_TRAD_MASK	0x00FFFFFF
-#define RIWBAR_BADD_VAL_SHIFT	12
-#define RIWBAR_BADD_MASK	0x003FFFFF
-#define RIWAR_ENABLE		0x80000000
-#define RIWAR_TGINT_LOCAL	0x00F00000
-#define RIWAR_RDTYP_NO_SNOOP	0x00040000
-#define RIWAR_RDTYP_SNOOP	0x00050000
-#define RIWAR_WRTYP_NO_SNOOP	0x00004000
-#define RIWAR_WRTYP_SNOOP	0x00005000
-#define RIWAR_WRTYP_ALLOC	0x00006000
-#define RIWAR_SIZE_MASK		0x0000003F
-
 static DEFINE_SPINLOCK(fsl_rio_config_lock);
 
 #define ___fsl_read_rio_config(x, addr, err, op, barrier)	\
@@ -94,22 +63,57 @@ static DEFINE_SPINLOCK(fsl_rio_config_lock);
 /* Exported from traps.c for exception handling */
 extern void __iomem *rio_regs_win;
 
-struct srio_dev {
-	struct resource *res;
-	int active_ports;
-	void __iomem *regs;
-	void __iomem *rmu_regs_win;
-	struct device *dev;
-	struct fsl_rio_dbell dbell;
-	struct fsl_rio_pw pw;
-	resource_size_t rio_law_start;
-	struct rio_mport ports[MAX_PORT_NUM];
-	struct rio_priv ports_priv[MAX_PORT_NUM];
-	struct device_node *rmu_np[MAX_PORT_NUM];
-};
+/* Stubs to be replaced by the Message Manager */
+static int stub_pwenable(struct rio_mport *mport, int enable)
+{
+	return -EINVAL;
+}
+
+static int stub_dsend(struct rio_mport *mport, int index, u16 destid, u16 data)
+{
+	return -EINVAL;
+}
+
+static int stub_add_outb_message(struct rio_mport *mport, struct rio_dev *rdev,
+				 int mbox, void *buffer, size_t len)
+{
+	return -EINVAL;
+}
+
+static int stub_open_outb_mbox(struct rio_mport *mport, void *dev_id, int mbox,
+			       int entries)
+{
+	return -EINVAL;
+}
+
+static void stub_close_outb_mbox(struct rio_mport *mport, int mbox)
+{
+	return;
+}
+
+static int stub_open_inb_mbox(struct rio_mport *mport, void *dev_id, int mbox,
+			      int entries)
+{
+	return -EINVAL;
+}
+
+static void stub_close_inb_mbox(struct rio_mport *mport, int mbox)
+{
+	return;
+}
+
+static int stub_add_inb_buffer(struct rio_mport *mport, int mbox, void *buf)
+{
+	return -EINVAL;
+}
+
+static void *stub_get_inb_message(struct rio_mport *mport, int mbox)
+{
+	return NULL;
+}
 
 /**
- * fsl_local_config_read - Generate a MPC85xx local config space read
+ * fsl_lcread - Generate a MPC85xx local config space read
  * @mport: RapidIO master port info
  * @index: ID of RapdiIO interface
  * @offset: Offset into configuration space
@@ -119,11 +123,11 @@ struct srio_dev {
  * Generates a MPC85xx local configuration space read. Returns %0 on
  * success or %-EINVAL on failure.
  */
-static int fsl_local_config_read(struct rio_mport *mport,
-				int index, u32 offset, int len, u32 *data)
+static int fsl_lcread(struct rio_mport *mport, int index, u32 offset, int len,
+		      u32 *data)
 {
-	struct rio_priv *priv = mport->priv;
-	pr_debug("fsl_local_config_read: index %d offset %8.8x\n", index,
+	struct rio_mport_priv *priv = mport->priv;
+	pr_debug("fsl_lcread: index %d offset %8.8x\n", index,
 		 offset);
 	*data = in_be32(priv->regs_win + offset);
 
@@ -131,7 +135,7 @@ static int fsl_local_config_read(struct rio_mport *mport,
 }
 
 /**
- * fsl_local_config_write - Generate a MPC85xx local config space write
+ * fsl_lcwrite - Generate a MPC85xx local config space write
  * @mport: RapidIO master port info
  * @index: ID of RapdiIO interface
  * @offset: Offset into configuration space
@@ -141,20 +145,19 @@ static int fsl_local_config_read(struct rio_mport *mport,
  * Generates a MPC85xx local configuration space write. Returns %0 on
  * success or %-EINVAL on failure.
  */
-static int fsl_local_config_write(struct rio_mport *mport,
+static int fsl_lcwrite(struct rio_mport *mport,
 				int index, u32 offset, int len, u32 data)
 {
-	struct rio_priv *priv = mport->priv;
-	pr_debug
-		("fsl_local_config_write: index %d offset %8.8x data %8.8x\n",
-		index, offset, data);
+	struct rio_mport_priv *priv = mport->priv;
+	pr_debug("fsl_lcwrite: index %d offset %8.8x data %8.8x\n",
+		 index, offset, data);
 	out_be32(priv->regs_win + offset, data);
 
 	return 0;
 }
 
 /**
- * fsl_rio_config_read - Generate a MPC85xx read maintenance transaction
+ * fsl_cread - Generate a MPC85xx read maintenance transaction
  * @mport: RapidIO master port info
  * @index: ID of RapdiIO interface
  * @destid: Destination ID of transaction
@@ -166,19 +169,16 @@ static int fsl_local_config_write(struct rio_mport *mport,
  * Generates a MPC85xx read maintenance transaction. Returns %0 on
  * success or %-EINVAL on failure.
  */
-static int
-fsl_rio_config_read(struct rio_mport *mport, int index, u16 destid,
-			u8 hopcount, u32 offset, int len, u32 *val)
+static int fsl_cread(struct rio_mport *mport, int index, u16 destid,
+		     u8 hopcount, u32 offset, int len, u32 *val)
 {
-	struct rio_priv *priv = mport->priv;
+	struct rio_mport_priv *priv = mport->priv;
 	unsigned long flags;
 	u8 *data;
 	u32 rval, err = 0;
 
-	pr_debug
-		("fsl_rio_config_read:"
-		" index %d destid %d hopcount %d offset %8.8x len %d\n",
-		index, destid, hopcount, offset, len);
+	pr_debug("fsl_cread: index %d destid %d hopcount %d offset %8.8x "
+		 "len %d\n", index, destid, hopcount, offset, len);
 
 	/* 16MB maintenance window possible */
 	/* allow only aligned access to maintenance registers */
@@ -219,7 +219,7 @@ fsl_rio_config_read(struct rio_mport *mport, int index, u16 destid,
 }
 
 /**
- * fsl_rio_config_write - Generate a MPC85xx write maintenance transaction
+ * fsl_cwrite - Generate a MPC85xx write maintenance transaction
  * @mport: RapidIO master port info
  * @index: ID of RapdiIO interface
  * @destid: Destination ID of transaction
@@ -231,19 +231,16 @@ fsl_rio_config_read(struct rio_mport *mport, int index, u16 destid,
  * Generates an MPC85xx write maintenance transaction. Returns %0 on
  * success or %-EINVAL on failure.
  */
-static int
-fsl_rio_config_write(struct rio_mport *mport, int index, u16 destid,
-			u8 hopcount, u32 offset, int len, u32 val)
+static int fsl_cwrite(struct rio_mport *mport, int index, u16 destid,
+		      u8 hopcount, u32 offset, int len, u32 val)
 {
-	struct rio_priv *priv = mport->priv;
+	struct rio_mport_priv *priv = mport->priv;
 	unsigned long flags;
 	u8 *data;
 	int ret = 0;
 
-	pr_debug
-		("fsl_rio_config_write:"
-		" index %d destid %d hopcount %d offset %8.8x len %d val %8.8x\n",
-		index, destid, hopcount, offset, len, val);
+	pr_debug("fsl_cwrite: index %d destid %d hopcount %d offset %8.8x len"
+		 " %d val %8.8x\n", index, destid, hopcount, offset, len, val);
 
 	/* 16MB maintenance windows possible */
 	/* allow only aligned access to maintenance registers */
@@ -275,7 +272,7 @@ fsl_rio_config_write(struct rio_mport *mport, int index, u16 destid,
 	return ret;
 }
 
-static void fsl_rio_inbound_mem_init(struct rio_priv *priv)
+static void fsl_rio_inbound_mem_init(struct rio_mport_priv *priv)
 {
 	int i;
 
@@ -284,10 +281,10 @@ static void fsl_rio_inbound_mem_init(struct rio_priv *priv)
 		out_be32(&priv->inb_atmu_regs[i].riwar, 0);
 }
 
-static int fsl_map_inb_mem(struct rio_mport *mport, dma_addr_t lstart,
-			   u64 rstart, u64 size, u32 flags)
+static int fsl_map_inb(struct rio_mport *mport, dma_addr_t lstart,
+		       u64 rstart, u64 size, u32 flags)
 {
-	struct rio_priv *priv = mport->priv;
+	struct rio_mport_priv *priv = mport->priv;
 	u32 base_size;
 	unsigned int base_size_log;
 	u64 win_start, win_end;
@@ -335,10 +332,10 @@ static int fsl_map_inb_mem(struct rio_mport *mport, dma_addr_t lstart,
 	return 0;
 }
 
-static void fsl_unmap_inb_mem(struct rio_mport *mport, dma_addr_t lstart)
+static void fsl_unmap_inb(struct rio_mport *mport, dma_addr_t lstart)
 {
 	u32 win_start_shift, base_start_shift;
-	struct rio_priv *priv = mport->priv;
+	struct rio_mport_priv *priv = mport->priv;
 	u32 riwar, riwtar;
 	int i;
 
@@ -358,26 +355,10 @@ static void fsl_unmap_inb_mem(struct rio_mport *mport, dma_addr_t lstart)
 	}
 }
 
-void fsl_rio_port_error_handler(struct fsl_rio_pw *pw, int offset)
-{
-	/*XXX: Error recovery is not implemented, we just clear errors */
-	out_be32((u32 *)(pw->rio_regs_win + RIO_LTLEDCSR), 0);
-
-	if (offset == 0) {
-		out_be32((u32 *)(pw->rio_regs_win + RIO_PORT1_EDCSR), 0);
-		out_be32((u32 *)(pw->rio_regs_win + RIO_PORT1_IECSR), IECSR_CLEAR);
-		out_be32((u32 *)(pw->rio_regs_win + RIO_ESCSR), ESCSR_CLEAR);
-	} else {
-		out_be32((u32 *)(pw->rio_regs_win + RIO_PORT2_EDCSR), 0);
-		out_be32((u32 *)(pw->rio_regs_win + RIO_PORT2_IECSR), IECSR_CLEAR);
-		out_be32((u32 *)(pw->rio_regs_win + RIO_PORT2_ESCSR), ESCSR_CLEAR);
-	}
-}
-
 static int fsl_query_mport(struct rio_mport *mport,
 			   struct rio_mport_attr *attr)
 {
-	struct rio_priv *priv = mport->priv;
+	struct rio_mport_priv *priv = mport->priv;
 	int id = mport->index;
 	u32 rval;
 
@@ -415,31 +396,32 @@ static void fsl_mport_release(struct device *dev)
 }
 
 static struct rio_ops fsl_rio_ops = {
-	.lcread			= fsl_local_config_read,
-	.lcwrite		= fsl_local_config_write,
-	.cread			= fsl_rio_config_read,
-	.cwrite			= fsl_rio_config_write,
-	.dsend			= fsl_rio_doorbell_send,
-	.pwenable		= fsl_rio_pw_enable,
-	.open_outb_mbox		= fsl_open_outb_mbox,
-	.open_inb_mbox		= fsl_open_inb_mbox,
-	.close_outb_mbox	= fsl_close_outb_mbox,
-	.close_inb_mbox		= fsl_close_inb_mbox,
-	.add_outb_message	= fsl_add_outb_message,
-	.add_inb_buffer		= fsl_add_inb_buffer,
-	.get_inb_message	= fsl_get_inb_message,
+	.lcread			= fsl_lcread,
+	.lcwrite		= fsl_lcwrite,
+	.cread			= fsl_cread,
+	.cwrite			= fsl_cwrite,
 	.query_mport		= fsl_query_mport,
-	.map_inb		= fsl_map_inb_mem,
-	.unmap_inb		= fsl_unmap_inb_mem,
+	.map_inb		= fsl_map_inb,
+	.unmap_inb		= fsl_unmap_inb,
+
+	.dsend			= stub_dsend,
+	.pwenable		= stub_pwenable,
+	.open_outb_mbox		= stub_open_outb_mbox,
+	.open_inb_mbox		= stub_open_inb_mbox,
+	.close_outb_mbox	= stub_close_outb_mbox,
+	.close_inb_mbox		= stub_close_inb_mbox,
+	.add_outb_message	= stub_add_outb_message,
+	.add_inb_buffer		= stub_add_inb_buffer,
+	.get_inb_message	= stub_get_inb_message,
 };
 
 static int fsl_rio_setup_port(struct device *dev, void *data)
 {
 	struct srio_dev *sriodev = data;
 	struct rio_mport *port;
-	struct rio_priv *priv;
+	struct rio_mport_priv *mprv;
 	const u32 *idx;
-	u32 ccsr, len, ecsr;
+	u32 len, ecsr;
 	int id, rc;
 
 	idx = of_get_property(dev_of_node(dev), "cell-index", &len);
@@ -450,7 +432,7 @@ static int fsl_rio_setup_port(struct device *dev, void *data)
 	id = *idx - 1;
 
 	port = &sriodev->ports[id];
-	priv = &sriodev->ports_priv[id];
+	mprv = &sriodev->ports_priv[id];
 
 	rc = rio_mport_initialize(port);
 	if (rc)
@@ -462,43 +444,43 @@ static int fsl_rio_setup_port(struct device *dev, void *data)
 	if (rc < 0)
 		return rc;
 
-	priv->window = devm_ioremap_resource(sriodev->dev, &port->iores);
-	if (IS_ERR(priv->window))
-		return PTR_ERR(priv->window);
+	mprv->window = devm_ioremap_resource(sriodev->dev, &port->iores);
+	if (IS_ERR(mprv->window))
+		return PTR_ERR(mprv->window);
 
 	dev_set_drvdata(dev, port);
 
 	sprintf(port->name, "fsl mport %d", id);
-	priv->dev = sriodev->dev;
+	mprv->sriodev = sriodev;
 	port->dev.parent = dev;
 	port->dev.release = fsl_mport_release;
 
-	port->ops = &fsl_rio_ops;
+	/* Copy ops since MMU might override some */
+	memcpy(&mprv->saved_ops, &fsl_rio_ops, sizeof(fsl_rio_ops));
+	port->ops = &mprv->saved_ops;
+
 	port->phys_efptr = 0x100;
 	port->phys_rmap = 1;
-	priv->regs_win = sriodev->regs;
-	priv->pw_regs = sriodev->pw.pw_regs;
-	priv->dbell = &sriodev->dbell;
+	mprv->regs_win = sriodev->regs;
 
-	ccsr = in_be32(priv->regs_win + 0x100 + RIO_PORT_N_CTL_CSR(id, 1));
-	ecsr = in_be32(priv->regs_win + 0x100 + RIO_PORT_N_ERR_STS_CSR(id, 1));
+	ecsr = in_be32(mprv->regs_win + 0x100 + RIO_PORT_N_ERR_STS_CSR(id, 1));
 
 	/* Checking the port training status */
 	if (ecsr & 1) {
 		dev_err(dev, "port not ready, restarting...\n");
 
 		/* Disable ports */
-		out_be32(priv->regs_win + RIO_PORT_N_CTL_CSR(0x100, id), 0);
+		out_be32(mprv->regs_win + 0x100 + RIO_PORT_N_CTL_CSR(id, 1), 0);
 		/* Set 1x lane */
-		setbits32(priv->regs_win +
-			  RIO_PORT_N_CTL_CSR(0x100, id), 0x02000000);
+		setbits32(mprv->regs_win + 0x100 +
+			  RIO_PORT_N_CTL_CSR(id, 1), 0x02000000);
 		/* Enable ports */
-		setbits32(priv->regs_win +
-			  RIO_PORT_N_CTL_CSR(0x100, id), 0x00600000);
+		setbits32(mprv->regs_win + 0x100 +
+			  RIO_PORT_N_CTL_CSR(id, 1), 0x00600000);
 
 		msleep(100);
 
-		ecsr = in_be32(priv->regs_win + 0x100 +
+		ecsr = in_be32(mprv->regs_win + 0x100 +
 			       RIO_PORT_N_CTL_CSR(id, 1));
 		if (ecsr & 1) {
 			dev_err(dev, "port restart failed\n");
@@ -508,43 +490,42 @@ static int fsl_rio_setup_port(struct device *dev, void *data)
 		dev_info(dev, "port restart succeded\n");
 	}
 
-	port->sys_size = (in_be32((priv->regs_win + RIO_PEF_CAR)) &
+	port->sys_size = (in_be32((mprv->regs_win + RIO_PEF_CAR)) &
 			  RIO_PEF_CTLS) >> 4;
 
 	if (port->host_deviceid >= 0)
-		out_be32(priv->regs_win + RIO_GCCSR, RIO_PORT_GEN_HOST |
+		out_be32(mprv->regs_win + RIO_GCCSR, RIO_PORT_GEN_HOST |
 			 RIO_PORT_GEN_MASTER | RIO_PORT_GEN_DISCOVERED);
 	else
-		out_be32(priv->regs_win + RIO_GCCSR, RIO_PORT_GEN_MASTER);
+		out_be32(mprv->regs_win + RIO_GCCSR, RIO_PORT_GEN_MASTER);
 
-	priv->atmu_regs = (struct rio_atmu_regs *)(priv->regs_win
+	mprv->atmu_regs = (struct rio_atmu_regs *)(mprv->regs_win
 		+ ((id == 0) ? RIO_ATMU_REGS_PORT1_OFFSET :
 		RIO_ATMU_REGS_PORT2_OFFSET));
 
-	priv->maint_atmu_regs = priv->atmu_regs + 1;
-	priv->inb_atmu_regs = (struct rio_inb_atmu_regs __iomem *)
-		(priv->regs_win + ((id == 0) ? RIO_INB_ATMU_REGS_PORT1_OFFSET :
+	mprv->maint_atmu_regs = mprv->atmu_regs + 1;
+	mprv->inb_atmu_regs = (struct rio_inb_atmu_regs __iomem *)
+		(mprv->regs_win + ((id == 0) ? RIO_INB_ATMU_REGS_PORT1_OFFSET :
 		RIO_INB_ATMU_REGS_PORT2_OFFSET));
 
 	/* Set to receive packets with any dest ID */
-	out_be32((priv->regs_win + RIO_ISR_AACR + id*0x80),
+	out_be32((mprv->regs_win + RIO_ISR_AACR + id*0x80),
 		 RIO_ISR_AACR_AA);
 
 	/* Configure maintenance transaction window */
-	out_be32(&priv->maint_atmu_regs->rowbar, port->iores.start >> 12);
-	out_be32(&priv->maint_atmu_regs->rowar,
+	out_be32(&mprv->maint_atmu_regs->rowbar, port->iores.start >> 12);
+	out_be32(&mprv->maint_atmu_regs->rowar,
 		 0x80077000 | (ilog2(RIO_MAINT_WIN_SIZE) - 1));
 
-	priv->maint_win = devm_ioremap(sriodev->dev, port->iores.start,
+	mprv->maint_win = devm_ioremap(sriodev->dev, port->iores.start,
 				       RIO_MAINT_WIN_SIZE);
 
-	fsl_rio_setup_rmu(port, sriodev->rmu_np[id]);
-	fsl_rio_inbound_mem_init(priv);
+	port->priv = mprv;
 
-	sriodev->dbell.mport[id] = port;
-	sriodev->pw.mport[id] = port;
+	if (sriodev->mmu_port_init)
+		sriodev->mmu_port_init(port);
 
-	port->priv = priv;
+	fsl_rio_inbound_mem_init(mprv);
 
 	if (rio_register_mport(port)) {
 		port->priv = NULL;
@@ -567,8 +548,6 @@ static int fsl_rio_setup_port(struct device *dev, void *data)
 static int fsl_rio_setup(struct platform_device *dev)
 {
 	struct srio_dev *sriodev;
-	struct device_node *np;
-	u64 range_start;
 	int rc;
 
 	sriodev = devm_kzalloc(&dev->dev, sizeof(*sriodev), GFP_KERNEL);
@@ -583,71 +562,21 @@ static int fsl_rio_setup(struct platform_device *dev)
 	if (IS_ERR(sriodev->regs))
 		return PTR_ERR(sriodev->regs);
 
-	/* Setup RMU */
-	np = of_parse_phandle(dev->dev.of_node, "fsl,srio-rmu-handle", 0);
-	if (!np) {
-		dev_err(&dev->dev, "No valid fsl,srio-rmu-handle property\n");
-		return -ENOENT;
-	}
-	sriodev->rmu_regs_win = devm_of_iomap(&dev->dev, np, 0, NULL);
-	of_node_put(np);
-	if (IS_ERR(sriodev->rmu_regs_win))
-		return PTR_ERR(sriodev->rmu_regs_win);
-
-	rc = 0;
-	for_each_compatible_node(np, NULL, "fsl,srio-msg-unit")
-		sriodev->rmu_np[rc++] = np;
-
-	/* Setup doorbell */
-	np = of_find_compatible_node(NULL, NULL, "fsl,srio-dbell-unit");
-	if (!np) {
-		dev_err(&dev->dev, "No fsl,srio-dbell-unit node\n");
-                return -ENODEV;
-	}
-        sriodev->dbell.dev = &dev->dev;
-        sriodev->dbell.bellirq = irq_of_parse_and_map(np, 1);
-
-	if (of_property_read_reg(np, 0, &range_start, NULL)) {
-		dev_err(&dev->dev, "%pOF: unable to find 'reg' property\n",
-			np);
-		return -ENOMEM;
-	}
-        sriodev->dbell.dbell_regs =
-		(struct rio_dbell_regs *)(sriodev->rmu_regs_win + range_start);
-
-	of_node_put(np);
-
-	/* Setup port write */
-	np = of_find_compatible_node(NULL, NULL, "fsl,srio-port-write-unit");
-	if (!np) {
-		dev_err(&dev->dev, "No fsl,srio-port-write-unit node\n");
-		return -ENODEV;
+	/* Register with the Message Manager */
+	rc = fsl_rio_mmu_init(sriodev);
+	if (rc && rc != -ENODEV) {
+		dev_err(&dev->dev, "Error configuring messaging unit\n");
+		return rc;
 	}
 
-	sriodev->pw.dev = &dev->dev;
-	sriodev->pw.pwirq = irq_of_parse_and_map(np, 0);
-	sriodev->pw.dbell_regs = sriodev->dbell.dbell_regs;
-
-	if (of_property_read_reg(np, 0, &range_start, NULL)) {
-		dev_err(&dev->dev, "%pOF: unable to find 'reg' property\n",
-			np);
-		return -ENOMEM;
-	}
-	sriodev->pw.pw_regs =
-		(struct rio_pw_regs *)(sriodev->rmu_regs_win + range_start);
-	sriodev->pw.rio_regs_win = sriodev->regs;
-	sriodev->pw.rmu_regs_win = sriodev->rmu_regs_win;
-
-	dev_info(&dev->dev, "Freescale Serial RapidIO initialized\n");
+	dev_info(&dev->dev, "Freescale SRIO: %s\n", sriodev->mmu_name ?:
+		 "No messaging unit\n");
 
 	/* Configure the mports */
 	device_for_each_child(&dev->dev, sriodev, fsl_rio_setup_port);
 
 	if (!sriodev->active_ports)
 		return -ENOLINK;
-
-	fsl_rio_doorbell_init(&sriodev->dbell);
-	fsl_rio_port_write_init(&sriodev->pw);
 
 	/* Let the exception handler know we're here */
 	rio_regs_win = sriodev->regs;
@@ -673,7 +602,8 @@ static void fsl_of_rio_rpn_remove(struct platform_device *dev)
 		rio_unregister_mport(&sriodev->ports[i]);
 	}
 
-	kfifo_free(&sriodev->pw.pw_fifo);
+	if (sriodev->mmu_exit)
+		sriodev->mmu_exit(sriodev);
 
 	rio_regs_win = NULL;
 }

@@ -25,21 +25,9 @@
 
 #include <linux/rio.h>
 #include <linux/rio_drv.h>
-#include <linux/kfifo.h>
-
-#define RIO_REGS_WIN(mport)	(((struct rio_priv *)(mport->priv))->regs_win)
 
 #define RIO_MAINT_WIN_SIZE	0x400000
 #define RIO_LTLEDCSR		0x0608
-
-#define DOORBELL_ROWAR_EN	0x80000000
-#define DOORBELL_ROWAR_TFLOWLV	0x08000000 /* highest priority level */
-#define DOORBELL_ROWAR_PCI	0x02000000 /* PCI window */
-#define DOORBELL_ROWAR_NREAD	0x00040000 /* NREAD */
-#define DOORBELL_ROWAR_MAINTRD	0x00070000  /* maintenance read */
-#define DOORBELL_ROWAR_RES	0x00002000 /* wrtpy: reserved */
-#define DOORBELL_ROWAR_MAINTWD	0x00007000
-#define DOORBELL_ROWAR_SIZE	0x0000000b /* window size is 4k */
 
 #define RIO_ATMU_REGS_PORT1_OFFSET	0x10c00
 #define RIO_ATMU_REGS_PORT2_OFFSET	0x10e00
@@ -49,9 +37,37 @@
 #define RIO_INB_ATMU_REGS_PORT1_OFFSET 0x10d60
 #define RIO_INB_ATMU_REGS_PORT2_OFFSET 0x10f60
 
-#define MAX_MSG_UNIT_NUM	2
 #define MAX_PORT_NUM		4
 #define RIO_INB_ATMU_COUNT	4
+
+#define RIO_PORT1_EDCSR         0x0640
+#define RIO_PORT2_EDCSR         0x0680
+#define RIO_PORT1_IECSR         0x10130
+#define RIO_PORT2_IECSR         0x101B0
+
+#define RIO_GCCSR               0x13c
+#define RIO_ESCSR               0x158
+#define ESCSR_CLEAR             0x07120204
+#define RIO_PORT2_ESCSR         0x178
+#define RIO_CCSR                0x15c
+#define RIO_LTLEDCSR_IER        0x80000000
+#define RIO_LTLEDCSR_PRT        0x01000000
+#define IECSR_CLEAR             0x80000000
+#define RIO_ISR_AACR            0x10120
+#define RIO_ISR_AACR_AA         0x1     /* Accept All ID */
+
+#define RIWTAR_TRAD_VAL_SHIFT   12
+#define RIWTAR_TRAD_MASK        0x00FFFFFF
+#define RIWBAR_BADD_VAL_SHIFT   12
+#define RIWBAR_BADD_MASK        0x003FFFFF
+#define RIWAR_ENABLE            0x80000000
+#define RIWAR_TGINT_LOCAL       0x00F00000
+#define RIWAR_RDTYP_NO_SNOOP    0x00040000
+#define RIWAR_RDTYP_SNOOP       0x00050000
+#define RIWAR_WRTYP_NO_SNOOP    0x00004000
+#define RIWAR_WRTYP_SNOOP       0x00005000
+#define RIWAR_WRTYP_ALLOC       0x00006000
+#define RIWAR_SIZE_MASK         0x0000003F
 
 struct rio_atmu_regs {
 	 u32 rowtar;
@@ -71,73 +87,33 @@ struct rio_inb_atmu_regs {
 	u32 pad3[3];
 };
 
-struct rio_dbell_ring {
-	void *virt;
-	dma_addr_t phys;
-};
+struct srio_dev;
 
-struct rio_port_write_msg {
-	 void *virt;
-	 dma_addr_t phys;
-	 u32 msg_count;
-	 u32 err_count;
-	 u32 discard_count;
-};
-
-struct fsl_rio_dbell {
-	struct rio_mport *mport[MAX_PORT_NUM];
-	struct device *dev;
-	struct rio_dbell_regs __iomem *dbell_regs;
-	struct rio_dbell_ring dbell_ring;
-	int bellirq;
-};
-
-struct fsl_rio_pw {
-	struct rio_mport *mport[MAX_PORT_NUM];
-	struct device *dev;
-	struct rio_pw_regs __iomem *pw_regs;
-	void __iomem *rio_regs_win;
-	void __iomem *rmu_regs_win;
-	struct rio_dbell_regs __iomem *dbell_regs;
-	struct rio_port_write_msg port_write_msg;
-	int pwirq;
-	struct work_struct pw_work;
-	struct kfifo pw_fifo;
-	spinlock_t pw_fifo_lock;
-};
-
-struct rio_priv {
-	struct device *dev;
+struct rio_mport_priv {
+	struct srio_dev *sriodev;
 	void __iomem *regs_win;
 	void __iomem *window;
-	struct rio_pw_regs __iomem *pw_regs;
 	struct rio_atmu_regs __iomem *atmu_regs;
 	struct rio_atmu_regs __iomem *maint_atmu_regs;
 	struct rio_inb_atmu_regs __iomem *inb_atmu_regs;
 	void __iomem *maint_win;
-	struct fsl_rio_dbell *dbell;
-	void *rmm_handle; /* RapidIO message manager(unit) Handle */
+	void *mmu_handle;
+	struct rio_ops saved_ops;
 };
 
-extern int fsl_rio_setup_rmu(struct rio_mport *mport,
-	struct device_node *node);
-extern int fsl_rio_port_write_init(struct fsl_rio_pw *pw);
-extern int fsl_rio_pw_enable(struct rio_mport *mport, int enable);
-extern void fsl_rio_port_error_handler(struct fsl_rio_pw *pw, int offset);
-extern int fsl_rio_doorbell_init(struct fsl_rio_dbell *dbell);
+struct srio_dev {
+	struct resource *res;
+	int active_ports;
+	void __iomem *regs;
+	struct device *dev;
+	struct rio_mport ports[MAX_PORT_NUM];
+	struct rio_mport_priv ports_priv[MAX_PORT_NUM];
+	void *mmu_handle;
+	const char *mmu_name;
+	void (*mmu_exit)(struct srio_dev *);
+	int (*mmu_port_init)(struct rio_mport *);
+};
 
-extern int fsl_rio_doorbell_send(struct rio_mport *mport,
-				int index, u16 destid, u16 data);
-extern int fsl_add_outb_message(struct rio_mport *mport,
-	struct rio_dev *rdev,
-	int mbox, void *buffer, size_t len);
-extern int fsl_open_outb_mbox(struct rio_mport *mport,
-	void *dev_id, int mbox, int entries);
-extern void fsl_close_outb_mbox(struct rio_mport *mport, int mbox);
-extern int fsl_open_inb_mbox(struct rio_mport *mport,
-	void *dev_id, int mbox, int entries);
-extern void fsl_close_inb_mbox(struct rio_mport *mport, int mbox);
-extern int fsl_add_inb_buffer(struct rio_mport *mport, int mbox, void *buf);
-extern void *fsl_get_inb_message(struct rio_mport *mport, int mbox);
+extern int fsl_rio_mmu_init(struct srio_dev *sriodev);
 
 #endif
