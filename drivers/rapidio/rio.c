@@ -2141,6 +2141,8 @@ int rio_unregister_mport(struct rio_mport *port)
 	 */
 	mutex_lock(&rio_mport_list_lock);
 	list_del(&port->node);
+	if (port->id == (next_portid - 1))
+		next_portid--;
 	mutex_unlock(&rio_mport_list_lock);
 	device_unregister(&port->dev);
 
