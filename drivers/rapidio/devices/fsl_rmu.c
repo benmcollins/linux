@@ -359,19 +359,18 @@ out:
 	return IRQ_HANDLED;
 }
 
-static void msg_unit_error_handler(void)
+static void msg_unit_error_handler(struct fsl_rio_pw *pw)
 {
-
 	/*XXX: Error recovery is not implemented, we just clear errors */
-	out_be32((u32 *)(rio_regs_win + RIO_LTLEDCSR), 0);
+	out_be32((u32 *)(pw->rio_regs_win + RIO_LTLEDCSR), 0);
 
-	out_be32((u32 *)(rmu_regs_win + RIO_IM0SR), IMSR_CLEAR);
-	out_be32((u32 *)(rmu_regs_win + RIO_IM1SR), IMSR_CLEAR);
-	out_be32((u32 *)(rmu_regs_win + RIO_OM0SR), OMSR_CLEAR);
-	out_be32((u32 *)(rmu_regs_win + RIO_OM1SR), OMSR_CLEAR);
+	out_be32((u32 *)(pw->rmu_regs_win + RIO_IM0SR), IMSR_CLEAR);
+	out_be32((u32 *)(pw->rmu_regs_win + RIO_IM1SR), IMSR_CLEAR);
+	out_be32((u32 *)(pw->rmu_regs_win + RIO_OM0SR), OMSR_CLEAR);
+	out_be32((u32 *)(pw->rmu_regs_win + RIO_OM1SR), OMSR_CLEAR);
 
-	out_be32(&dbell->dbell_regs->odsr, ODSR_CLEAR);
-	out_be32(&dbell->dbell_regs->dsr, IDSR_CLEAR);
+	out_be32(&pw->dbell_regs->odsr, ODSR_CLEAR);
+	out_be32(&pw->dbell_regs->dsr, IDSR_CLEAR);
 
 	out_be32(&pw->pw_regs->pwsr, IPWSR_CLEAR);
 }
@@ -391,7 +390,7 @@ fsl_rio_port_write_handler(int irq, void *dev_instance)
 	struct fsl_rio_pw *pw = (struct fsl_rio_pw *)dev_instance;
 	u32 epwisr, tmp;
 
-	epwisr = in_be32(rio_regs_win + RIO_EPWISR);
+	epwisr = in_be32(pw->rio_regs_win + RIO_EPWISR);
 	if (!(epwisr & RIO_EPWISR_PW))
 		goto pw_done;
 
@@ -456,21 +455,21 @@ fsl_rio_port_write_handler(int irq, void *dev_instance)
 
 pw_done:
 	if (epwisr & RIO_EPWISR_PINT1) {
-		tmp = in_be32(rio_regs_win + RIO_LTLEDCSR);
+		tmp = in_be32(pw->rio_regs_win + RIO_LTLEDCSR);
 		pr_debug("RIO_LTLEDCSR = 0x%x\n", tmp);
-		fsl_rio_port_error_handler(0);
+		fsl_rio_port_error_handler(pw, 0);
 	}
 
 	if (epwisr & RIO_EPWISR_PINT2) {
-		tmp = in_be32(rio_regs_win + RIO_LTLEDCSR);
+		tmp = in_be32(pw->rio_regs_win + RIO_LTLEDCSR);
 		pr_debug("RIO_LTLEDCSR = 0x%x\n", tmp);
-		fsl_rio_port_error_handler(1);
+		fsl_rio_port_error_handler(pw, 1);
 	}
 
 	if (epwisr & RIO_EPWISR_MU) {
-		tmp = in_be32(rio_regs_win + RIO_LTLEDCSR);
+		tmp = in_be32(pw->rio_regs_win + RIO_LTLEDCSR);
 		pr_debug("RIO_LTLEDCSR = 0x%x\n", tmp);
-		msg_unit_error_handler();
+		msg_unit_error_handler(pw);
 	}
 
 	return IRQ_HANDLED;
@@ -517,16 +516,17 @@ static void fsl_pw_dpc(struct work_struct *work)
  */
 int fsl_rio_pw_enable(struct rio_mport *mport, int enable)
 {
+	struct rio_priv *priv = mport->priv;
 	u32 rval;
 
-	rval = in_be32(&pw->pw_regs->pwmr);
+	rval = in_be32(&priv->pw_regs->pwmr);
 
 	if (enable)
 		rval |= RIO_IPWMR_PWE;
 	else
 		rval &= ~RIO_IPWMR_PWE;
 
-	out_be32(&pw->pw_regs->pwmr, rval);
+	out_be32(&priv->pw_regs->pwmr, rval);
 
 	return 0;
 }
@@ -579,14 +579,15 @@ int fsl_rio_port_write_init(struct fsl_rio_pw *pw)
 
 
 	/* Hook up port-write handler */
-	rc = request_irq(IRQ_RIO_PW(pw), fsl_rio_port_write_handler,
-			IRQF_SHARED, "port-write", (void *)pw);
+	rc = devm_request_irq(pw->dev, IRQ_RIO_PW(pw),
+			      fsl_rio_port_write_handler,
+			      IRQF_SHARED, "port-write", (void *)pw);
 	if (rc < 0) {
 		pr_err("MPC85xx RIO: unable to request inbound doorbell irq");
 		goto err_out;
 	}
 	/* Enable Error Interrupt */
-	out_be32((u32 *)(rio_regs_win + RIO_LTLEECSR), LTLEECSR_ENABLE_ALL);
+	out_be32((u32 *)(pw->rio_regs_win + RIO_LTLEECSR), LTLEECSR_ENABLE_ALL);
 
 	INIT_WORK(&pw->pw_work, fsl_pw_dpc);
 	spin_lock_init(&pw->pw_fifo_lock);
@@ -622,8 +623,9 @@ err_out:
  * %-EINVAL on failure.
  */
 int fsl_rio_doorbell_send(struct rio_mport *mport,
-				int index, u16 destid, u16 data)
+			  int index, u16 destid, u16 data)
 {
+	struct rio_priv *priv = mport->priv;
 	unsigned long flags;
 
 	pr_debug("fsl_doorbell_send: index %d destid %4.4x data %4.4x\n",
@@ -634,11 +636,11 @@ int fsl_rio_doorbell_send(struct rio_mport *mport,
 	/* In the serial version silicons, such as MPC8548, MPC8641,
 	 * below operations is must be.
 	 */
-	out_be32(&dbell->dbell_regs->odmr, 0x00000000);
-	out_be32(&dbell->dbell_regs->odretcr, 0x00000004);
-	out_be32(&dbell->dbell_regs->oddpr, destid << 16);
-	out_be32(&dbell->dbell_regs->oddatr, (index << 20) | data);
-	out_be32(&dbell->dbell_regs->odmr, 0x00000001);
+	out_be32(&priv->dbell->dbell_regs->odmr, 0x00000000);
+	out_be32(&priv->dbell->dbell_regs->odretcr, 0x00000004);
+	out_be32(&priv->dbell->dbell_regs->oddpr, destid << 16);
+	out_be32(&priv->dbell->dbell_regs->oddatr, (index << 20) | data);
+	out_be32(&priv->dbell->dbell_regs->odmr, 0x00000001);
 
 	spin_unlock_irqrestore(&fsl_rio_doorbell_lock, flags);
 
@@ -773,8 +775,8 @@ fsl_open_outb_mbox(struct rio_mport *mport, void *dev_id, int mbox, int entries)
 	out_be32(&rmu->msg_regs->osr, 0x000000b3);
 
 	/* Hook up outbound message handler */
-	rc = request_irq(IRQ_RIO_TX(mport), fsl_rio_tx_handler, 0,
-			 "msg_tx", (void *)mport);
+	rc = devm_request_irq(priv->dev, IRQ_RIO_TX(mport), fsl_rio_tx_handler,
+			      0, "msg_tx", (void *)mport);
 	if (rc < 0)
 		goto out_irq;
 
@@ -885,8 +887,8 @@ fsl_open_inb_mbox(struct rio_mport *mport, void *dev_id, int mbox, int entries)
 	out_be32(&rmu->msg_regs->isr, 0x00000091);
 
 	/* Hook up inbound message handler */
-	rc = request_irq(IRQ_RIO_RX(mport), fsl_rio_rx_handler, 0,
-			 "msg_rx", (void *)mport);
+	rc = devm_request_irq(priv->dev, IRQ_RIO_RX(mport), fsl_rio_rx_handler,
+			      0, "msg_rx", (void *)mport);
 	if (rc < 0) {
 		dma_free_coherent(priv->dev,
 			rmu->msg_rx_ring.size * RIO_MAX_MSG_SIZE,
@@ -1045,8 +1047,9 @@ int fsl_rio_doorbell_init(struct fsl_rio_dbell *dbell)
 	out_be32(&dbell->dbell_regs->dsr, 0x00000091);
 
 	/* Hook up doorbell handler */
-	rc = request_irq(IRQ_RIO_BELL(dbell), fsl_rio_dbell_handler, 0,
-			 "dbell_rx", (void *)dbell);
+	rc = devm_request_irq(dbell->dev, IRQ_RIO_BELL(dbell),
+			      fsl_rio_dbell_handler, 0, "dbell_rx",
+			      (void *)dbell);
 	if (rc < 0) {
 		dma_free_coherent(dbell->dev, 512 * DOORBELL_MESSAGE_SIZE,
 			 dbell->dbell_ring.virt, dbell->dbell_ring.phys);
@@ -1079,7 +1082,7 @@ int fsl_rio_setup_rmu(struct rio_mport *mport, struct device_node *node)
 		return -EINVAL;
 	}
 
-	rmu = kzalloc(sizeof(struct fsl_rmu), GFP_KERNEL);
+	rmu = devm_kzalloc(priv->dev, sizeof(struct fsl_rmu), GFP_KERNEL);
 	if (!rmu)
 		return -ENOMEM;
 
@@ -1090,7 +1093,7 @@ int fsl_rio_setup_rmu(struct rio_mport *mport, struct device_node *node)
 		return -ENOMEM;
 	}
 	rmu->msg_regs = (struct rio_msg_regs *)
-			(rmu_regs_win + (u32)msg_start);
+			(RIO_REGS_WIN(mport) + (u32)msg_start);
 
 	rmu->txirq = irq_of_parse_and_map(node, 0);
 	rmu->rxirq = irq_of_parse_and_map(node, 1);

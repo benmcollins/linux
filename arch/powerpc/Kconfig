@@ -1151,14 +1151,6 @@ config FSL_GTM
 	help
 	  Freescale General-purpose Timers support
 
-config FSL_RIO
-	bool "Freescale Embedded SRIO Controller support"
-	depends on RAPIDIO = y && HAVE_RAPIDIO
-	default "n"
-	help
-	  Include support for RapidIO controller on Freescale embedded
-	  processors (MPC8548, MPC8641, etc).
-
 endmenu
 
 config NONSTATIC_KERNEL

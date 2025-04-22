@@ -9,3 +9,11 @@ config RAPIDIO_TSI721
 	default "n"
 	help
 	  Include support for IDT Tsi721 PCI Express Serial RapidIO controller.
+
+config FSL_RIO
+	tristate "Freescale Embedded SRIO Controller support"
+	depends on RAPIDIO && PPC_E500
+	default "n"
+	help
+	  Include support for RapidIO controller on Freescale embedded
+	  processors (MPC8548, MPC8641, P-Series, T-Series, etc).
