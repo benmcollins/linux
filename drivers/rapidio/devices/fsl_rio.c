@@ -2,6 +2,8 @@
 /*
  * Freescale MPC85xx/MPC86xx RapidIO support
  *
+ * Copyright (C) 2025 Ben Collins <bcollins@maclara-llc.com>
+ *
  * Copyright 2009 Sysgo AG
  * Thomas Moll <thomas.moll@sysgo.com>
  * - fixed maintenance access routines, check for aligned access
@@ -26,9 +28,8 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
-#include <linux/platform_device.h>
-#include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include <linux/io.h>
 #include <linux/uaccess.h>
@@ -586,12 +587,12 @@ static int fsl_rio_setup(struct platform_device *dev)
 
 /* The probe function for RapidIO peer-to-peer network.
  */
-static int fsl_of_rio_rpn_probe(struct platform_device *dev)
+int fsl_rio_probe(struct platform_device *dev)
 {
 	return fsl_rio_setup(dev);
 };
 
-static void fsl_of_rio_rpn_remove(struct platform_device *dev)
+void fsl_rio_remove(struct platform_device *dev)
 {
 	struct srio_dev *sriodev = platform_get_drvdata(dev);
 	int i;
@@ -608,36 +609,18 @@ static void fsl_of_rio_rpn_remove(struct platform_device *dev)
 	rio_regs_win = NULL;
 }
 
-static const struct of_device_id fsl_of_rio_rpn_ids[] = {
-	{
-		.compatible = "fsl,srio",
-	},
-	{},
-};
-
-static struct platform_driver fsl_of_rio_rpn_driver = {
-	.driver = {
-		.owner = THIS_MODULE,
-		.name = "fsl-of-rio",
-		.of_match_table = fsl_of_rio_rpn_ids,
-	},
-	.probe = fsl_of_rio_rpn_probe,
-	.remove = fsl_of_rio_rpn_remove,
-};
-
-static __init int fsl_of_rio_rpn_init(void)
+int __init fsl_rio_init(void)
 {
-	return platform_driver_register(&fsl_of_rio_rpn_driver);
+	return platform_driver_register(&fsl_rio_driver);
 }
 
-static void __exit fsl_of_rio_rpn_exit(void)
+void __exit fsl_rio_exit(void)
 {
-	platform_driver_unregister(&fsl_of_rio_rpn_driver);
+	platform_driver_unregister(&fsl_rio_driver);
 }
 
-module_init(fsl_of_rio_rpn_init);
-module_exit(fsl_of_rio_rpn_exit);
+module_init(fsl_rio_init);
+module_exit(fsl_rio_exit);
 
-MODULE_DESCRIPTION("Freescale Embedded SRIO Controller");
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_LICENSE("GPL");

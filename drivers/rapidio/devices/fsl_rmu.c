@@ -2,6 +2,8 @@
 /*
  * Freescale MPC85xx/MPC86xx RapidIO RMU support
  *
+ * Copyright (C) 2025 Ben Collins <bcollins@maclara-llc.com>
+ *
  * Copyright 2009 Sysgo AG
  * Thomas Moll <thomas.moll@sysgo.com>
  * - fixed maintenance access routines, check for aligned access
@@ -1218,10 +1220,29 @@ int fsl_rio_mmu_init(struct srio_dev *sriodev)
 
 	sriodev->mmu_exit = rmu_mmu_exit;
 	sriodev->mmu_port_init = rmu_mmu_port_init;
-	sriodev->mmu_name = "QorIQ RapidIO Message Unit";
+	sriodev->mmu_name = "QorIQ RMU";
 
 	/* Set this last */
 	sriodev->mmu_handle = rmu;
 
 	return 0;
 }
+
+static const struct of_device_id fsl_rio_ids[] = {
+	{
+		.compatible = "fsl,srio",
+	},
+	{},
+};
+
+struct platform_driver fsl_rio_driver = {
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "fsl-rio-rmu",
+		.of_match_table = fsl_rio_ids,
+	},
+	.probe = fsl_rio_probe,
+	.remove = fsl_rio_remove,
+};
+
+MODULE_DESCRIPTION("QorIQ SRIO-RMU Controller");

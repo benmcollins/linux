@@ -10,3 +10,6 @@ obj-$(CONFIG_RAPIDIO_MPORT_CDEV) += rio_mport_cdev.o
 
 obj-$(CONFIG_FSL_RIO_RMU)	+= fsl_rio_rmu.o
 fsl_rio_rmu-y			:= fsl_rio.o fsl_rmu.o
+
+obj-$(CONFIG_FSL_RIO_DPAA)	+= fsl_rio_dpaa.o
+fsl_rio_dpaa-y			:= fsl_rio.o fsl_dpaa.o

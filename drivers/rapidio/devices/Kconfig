@@ -22,3 +22,13 @@ config FSL_RIO_RMU
 	  Include support for RapidIO controller on Freescale embedded
 	  processors (MPC8548, MPC8641, etc). This controller depends on an
 	  RMU, usually found on P4080 and similar systems.
+
+config FSL_RIO_DPAA
+	tristate "Freescale SRIO Controller using DPAA"
+	depends on RAPIDIO && PPC64
+	select FSL_RIO
+	default n
+	help
+	  Include support for RapidIO controller on Freescale embedded
+	  processors using DPAA architecture. This would be used for systems
+	  like T-Series with SRIO capability.

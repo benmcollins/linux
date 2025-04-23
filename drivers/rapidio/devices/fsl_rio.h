@@ -2,6 +2,8 @@
 /*
  * Freescale MPC85xx/MPC86xx RapidIO support
  *
+ * Copyright (C) 2025 Ben Collins <bcollins@maclara-llc.com>
+ *
  * Copyright 2009 Sysgo AG
  * Thomas Moll <thomas.moll@sysgo.com>
  * - fixed maintenance access routines, check for aligned access
@@ -25,6 +27,8 @@
 
 #include <linux/rio.h>
 #include <linux/rio_drv.h>
+#include <linux/rio_regs.h>
+#include <linux/platform_device.h>
 
 #define RIO_MAINT_WIN_SIZE	0x400000
 #define RIO_LTLEDCSR		0x0608
@@ -114,6 +118,14 @@ struct srio_dev {
 	int (*mmu_port_init)(struct rio_mport *);
 };
 
+/* Exported by the MMU provider for fsl_rio */
 extern int fsl_rio_mmu_init(struct srio_dev *sriodev);
+extern struct platform_driver fsl_rio_driver;
+
+/* Exported by fsl_rio for the MMUs */
+extern int __init fsl_rio_init(void);
+extern void __exit fsl_rio_exit(void);
+extern int fsl_rio_probe(struct platform_device *dev);
+extern void fsl_rio_remove(struct platform_device *dev);
 
 #endif
