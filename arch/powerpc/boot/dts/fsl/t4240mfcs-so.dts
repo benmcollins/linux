@@ -335,6 +335,11 @@
 		los-gpios = <&gpio2 29 GPIO_ACTIVE_HIGH>;
 	};
 
+	/* For updated driver */
+	rapidio@ffe0c0000 {
+		compatible = "fsl,srio-dpaa";
+	};
+
 	soc@ffe000000 {
 		fman@400000 {
 			/* FM1 1G 1 */
