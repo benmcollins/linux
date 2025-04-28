@@ -425,6 +425,9 @@ static int fsl_rio_setup_port(struct device *dev, void *data)
 	u32 len, ecsr;
 	int id, rc;
 
+	if (!of_device_is_compatible(dev_of_node(dev), "fsl,srio-mport"))
+		return 0;
+
 	idx = of_get_property(dev_of_node(dev), "cell-index", &len);
 	if (!idx) {
 		dev_err(dev, "missing cell-index property\n");
