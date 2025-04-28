@@ -243,13 +243,16 @@
 	};
 
 	rio: rapidio@ffe0c0000 {
+		compatible = "fsl,srio-dpaa";
 		reg = <BRD_HIGH 0xfe0c0000 0 0x11000>;
 
 		port1 {
+			compatible = "fsl,srio-mport";
 			ranges = <0 0 MEM_HIGH 0x40000000 0 0x10000000>;
 		};
 
 		port2 {
+			compatible = "fsl,srio-mport";
 			ranges = <0 0 MEM_HIGH 0x50000000 0 0x10000000>;
 		};
 	};
