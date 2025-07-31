@@ -397,8 +397,6 @@ struct phylink_pcs *lynx_pcs_create_mdiodev(struct device *dev,
 	if (IS_ERR(mdio))
 		return ERR_CAST(mdio);
 
-	mdio->bus_match = mdio_device_bus_match;
-	strscpy(mdio->modalias, "lynx-pcs");
 	err = mdio_device_register(mdio);
 	if (err) {
 		mdio_device_free(mdio);
