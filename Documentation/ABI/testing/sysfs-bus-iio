@@ -2276,7 +2276,11 @@ Description:
 		Reading returns a list with the possible filter modes. Options
 		for the attribute:
 
-		* "none" - Filter is disabled/bypassed.
+		* "none" - Filter is disabled/bypassed. When set in the
+		  filter_type attribute, a driver should return IIO_VAL_EMPTY
+		  when reading sampling and frequency related attributes of
+		  this filter, and return -EINVAL when trying to write these
+		  attributes.
 		* "sinc1" - The digital sinc1 filter. Fast 1st
 		  conversion time. Poor noise performance.
 		* "sinc3" - The digital sinc3 filter. Moderate 1st
