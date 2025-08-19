@@ -31,6 +31,7 @@
 #define MCP9600_STATUS_ALERT(x)		BIT(x)
 #define MCP9600_SENSOR_CFG		0x05
 #define MCP9600_SENSOR_TYPE_MASK	GENMASK(6, 4)
+#define MCP9600_FILTER_MASK		GENMASK(2, 0)
 #define MCP9600_ALERT_CFG1		0x08
 #define MCP9600_ALERT_CFG(x)		(MCP9600_ALERT_CFG1 + (x - 1))
 #define MCP9600_ALERT_CFG_ENABLE	BIT(0)
@@ -94,6 +95,27 @@ static const int mcp9600_tc_types[] = {
 	[THERMOCOUPLE_TYPE_R] = 'R',
 };
 
+enum mcp9600_filter {
+	MCP9600_FILTER_TYPE_NONE,
+	MCP9600_FILTER_TYPE_EMA,
+};
+
+static const char * const mcp9600_filter_type[] = {
+	[MCP9600_FILTER_TYPE_NONE] = "none",
+	[MCP9600_FILTER_TYPE_EMA] = "ema",
+};
+
+static const int mcp_iir_coefficients_avail[7][2] = {
+	/* Level 0 is no filter */
+	{ 0, 524549 },
+	{ 0, 243901 },
+	{ 0, 119994 },
+	{ 0,  59761 },
+	{ 0,  29851 },
+	{ 0,  14922 },
+	{ 0,   7461 },
+};
+
 static const struct iio_event_spec mcp9600_events[] = {
 	{
 		.type = IIO_EV_TYPE_THRESH,
@@ -119,6 +141,8 @@ struct mcp_chip_info {
 struct mcp9600_data {
 	struct i2c_client *client;
 	u32 thermocouple_type;
+	int filter_level;
+	int filter_enabled;
 };
 
 static int mcp9600_config(struct mcp9600_data *data)
@@ -129,6 +153,9 @@ static int mcp9600_config(struct mcp9600_data *data)
 
 	cfg  = FIELD_PREP(MCP9600_SENSOR_TYPE_MASK,
 			  mcp9600_type_map[data->thermocouple_type]);
+	/* The chip understands 0 as "none", and 1-7 as ema filter levels. */
+	if (data->filter_enabled)
+		FIELD_MODIFY(MCP9600_FILTER_MASK, &cfg, data->filter_level + 1);
 
 	ret = i2c_smbus_write_byte_data(client, MCP9600_SENSOR_CFG, cfg);
 	if (ret < 0) {
@@ -146,7 +173,11 @@ static int mcp9600_config(struct mcp9600_data *data)
 			.address = MCP9600_HOT_JUNCTION,		       \
 			.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |	       \
 					      BIT(IIO_CHAN_INFO_THERMOCOUPLE_TYPE) | \
+					      BIT(IIO_CHAN_INFO_LOW_PASS_FILTER_3DB_FREQUENCY) | \
 					      BIT(IIO_CHAN_INFO_SCALE),	       \
+			.info_mask_separate_available =                        \
+					      BIT(IIO_CHAN_INFO_LOW_PASS_FILTER_3DB_FREQUENCY), \
+			.ext_info = mcp9600_ext_filter,			       \
 			.event_spec = &mcp9600_events[hj_ev_spec_off],	       \
 			.num_event_specs = hj_num_ev,			       \
 		},							       \
@@ -161,6 +192,57 @@ static int mcp9600_config(struct mcp9600_data *data)
 			.num_event_specs = cj_num_ev,			       \
 		},							       \
 	}
+
+static int mcp9600_get_filter(struct iio_dev *indio_dev,
+			      struct iio_chan_spec const *chan)
+{
+	struct mcp9600_data *data = iio_priv(indio_dev);
+
+	return data->filter_enabled ? MCP9600_FILTER_TYPE_EMA :
+		MCP9600_FILTER_TYPE_NONE;
+}
+
+static int mcp9600_set_filter(struct iio_dev *indio_dev,
+			      struct iio_chan_spec const *chan,
+			      unsigned int mode)
+{
+	struct mcp9600_data *data = iio_priv(indio_dev);
+	int new_type;
+
+	switch (mode) {
+	case MCP9600_FILTER_TYPE_NONE:
+		new_type = 0;
+		break;
+
+	case MCP9600_FILTER_TYPE_EMA:
+		new_type = 1;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	/* Do not reset the filter if we don't need to. */
+	if (data->filter_enabled == new_type)
+		return 0;
+
+	data->filter_enabled = new_type;
+	return mcp9600_config(data);
+}
+
+static const struct iio_enum mcp9600_filter_enum = {
+	.items = mcp9600_filter_type,
+	.num_items = ARRAY_SIZE(mcp9600_filter_type),
+	.get = mcp9600_get_filter,
+	.set = mcp9600_set_filter,
+};
+
+static const struct iio_chan_spec_ext_info mcp9600_ext_filter[] = {
+	IIO_ENUM("filter_type", IIO_SHARED_BY_ALL, &mcp9600_filter_enum),
+	IIO_ENUM_AVAILABLE("filter_type", IIO_SHARED_BY_ALL,
+			   &mcp9600_filter_enum),
+	{ }
+};
 
 static const struct iio_chan_spec mcp9600_channels[][2] = {
 	MCP9600_CHANNELS(0, 0, 0, 0), /* Alerts: - - - - */
@@ -216,6 +298,69 @@ static int mcp9600_read_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_THERMOCOUPLE_TYPE:
 		*val = mcp9600_tc_types[data->thermocouple_type];
 		return IIO_VAL_CHAR;
+	case IIO_CHAN_INFO_LOW_PASS_FILTER_3DB_FREQUENCY:
+		if (!data->filter_enabled)
+			return IIO_VAL_EMPTY;
+
+		*val = mcp_iir_coefficients_avail[data->filter_level][0];
+		*val2 = mcp_iir_coefficients_avail[data->filter_level][1];
+		return IIO_VAL_INT_PLUS_MICRO;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int mcp9600_read_avail(struct iio_dev *indio_dev,
+			      struct iio_chan_spec const *chan,
+			      const int **vals, int *type, int *length,
+			      long mask)
+{
+	struct mcp9600_data *data = iio_priv(indio_dev);
+
+	switch (mask) {
+	case IIO_CHAN_INFO_LOW_PASS_FILTER_3DB_FREQUENCY:
+		if (!data->filter_enabled) {
+			*type = IIO_VAL_EMPTY;
+			return IIO_AVAIL_LIST;
+		}
+
+		*vals = (int *)mcp_iir_coefficients_avail;
+		*length = 2 * ARRAY_SIZE(mcp_iir_coefficients_avail);
+		*type = IIO_VAL_INT_PLUS_MICRO;
+		return IIO_AVAIL_LIST;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int mcp9600_write_raw(struct iio_dev *indio_dev,
+			     struct iio_chan_spec const *chan,
+			     int val, int val2, long mask)
+{
+	struct mcp9600_data *data = iio_priv(indio_dev);
+	int i;
+
+	switch (mask) {
+	case IIO_CHAN_INFO_LOW_PASS_FILTER_3DB_FREQUENCY:
+		if (!data->filter_enabled)
+			return -EINVAL;
+
+		for (i = 0; i < ARRAY_SIZE(mcp_iir_coefficients_avail); i++) {
+			if (mcp_iir_coefficients_avail[i][0] == val &&
+			    mcp_iir_coefficients_avail[i][1] == val2)
+				break;
+		}
+
+		if (i == ARRAY_SIZE(mcp_iir_coefficients_avail))
+			return -EINVAL;
+
+		/* Do not reset the filter if there's no change. */
+		if (data->filter_level == i)
+			return 0;
+
+		data->filter_level = i;
+		return mcp9600_config(data);
+
 	default:
 		return -EINVAL;
 	}
@@ -358,6 +503,8 @@ static int mcp9600_write_thresh(struct iio_dev *indio_dev,
 
 static const struct iio_info mcp9600_info = {
 	.read_raw = mcp9600_read_raw,
+	.read_avail = mcp9600_read_avail,
+	.write_raw = mcp9600_write_raw,
 	.read_event_config = mcp9600_read_event_config,
 	.write_event_config = mcp9600_write_event_config,
 	.read_event_value = mcp9600_read_thresh,
