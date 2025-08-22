@@ -154,8 +154,6 @@ static const int ad4080_dec_rate_avail[] = {
 	2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
 };
 
-static const int ad4080_dec_rate_none[] = { 1 };
-
 static const char * const ad4080_power_supplies[] = {
 	"vdd33", "vdd11", "vddldo", "iovdd", "vrefin",
 };
@@ -268,13 +266,13 @@ static int ad4080_read_raw(struct iio_dev *indio_dev,
 			*val = st->clk_rate;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
-		if (st->filter_type == FILTER_NONE) {
-			*val = 1;
-		} else {
-			*val = ad4080_get_dec_rate(indio_dev, chan);
-			if (*val < 0)
-				return *val;
-		}
+		if (st->filter_type == FILTER_NONE)
+			return IIO_VAL_EMPTY;
+
+		*val = ad4080_get_dec_rate(indio_dev, chan);
+		if (*val < 0)
+			return *val;
+
 		return IIO_VAL_INT;
 	default:
 		return -EINVAL;
@@ -289,7 +287,7 @@ static int ad4080_write_raw(struct iio_dev *indio_dev,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
-		if (st->filter_type == FILTER_NONE && val > 1)
+		if (st->filter_type == FILTER_NONE)
 			return -EINVAL;
 
 		return ad4080_set_dec_rate(indio_dev, chan, val);
@@ -376,17 +374,16 @@ static int ad4080_read_avail(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		switch (st->filter_type) {
 		case FILTER_NONE:
-			*vals = ad4080_dec_rate_none;
-			*length = ARRAY_SIZE(ad4080_dec_rate_none);
+			*type = IIO_VAL_EMPTY;
 			break;
 		default:
 			*vals = ad4080_dec_rate_avail;
 			*length = st->filter_type >= SINC_5 ?
 				  (ARRAY_SIZE(ad4080_dec_rate_avail) - 2) :
 				  ARRAY_SIZE(ad4080_dec_rate_avail);
+			*type = IIO_VAL_INT;
 			break;
 		}
-		*type = IIO_VAL_INT;
 		return IIO_AVAIL_LIST;
 	default:
 		return -EINVAL;
